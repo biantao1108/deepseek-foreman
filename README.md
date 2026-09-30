@@ -40,7 +40,19 @@ ln -s "$PWD/skill/dsh-foreman" ~/.dsh/skills/dsh-foreman
 
 dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
 
-**改完要开新会话**：技能目录会热更新，但 `allowedModels` 白名单是在新顶层会话创建时快照的。
+## 配置角色表（`~/.dsh/foreman.roles.yml`）
+
+角色表不在 cordis config 里，而在一个外部 YAML 文件，默认 `~/.dsh/foreman.roles.yml`（可用插件的 `rolesFile` 字段换位置）。三步：
+
+1. **装包**：按上一节把 skill 软链进 `~/.dsh/skills`，并按[前置条件](#前置条件)把插件挂上。插件首次加载时若发现角色表文件不存在，会**自动铺一份带中文注释的模板**（内容就是包里的 [roles.example.yml](roles.example.yml)），并进入「未配置」引导态——`pick_route` 全部返回 `ok:false`，reason 写明文件位置和下一步（「按注释填好 provider/model，保存即生效」），插件本身不报错、不影响 dsh 启动。
+2. **编辑 `~/.dsh/foreman.roles.yml`**：把模板里「组合 A」或「组合 B」其中一组的注释解开（**只解一组**，同时解开会出现两个顶层 `roles:` 键），再把 `provider` / `model` 换成你自己白名单里已有的路由。
+3. **开新会话**：`allowedModels` 白名单是会话快照，改白名单要开新会话（下一节）。角色表文件不受这条限制。
+
+```bash
+$EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
+```
+
+**改角色表不用重启**：`pick_route` 每次调用都查一次该文件的 mtime，变了就重读 + 重校验。文件写坏也不会把插件带崩：保留上一份可用角色表、本次调用返回 `ok:false` 并说明错在哪，改好保存后下一次调用自动恢复。
 
 ## 前置条件
 
@@ -50,6 +62,8 @@ dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.
 - `standard` preset（其 `subagent` 工具实例带 `modelSelectionSettings: true`）
 
 两者缺一，`subagent` 就不会暴露 `provider`/`model` 入参，本 skill 的派单步骤无法执行。
+
+**白名单是会话快照**：`allowedModels` 在**新顶层会话创建时取一次**，之后改它不影响已经在跑的会话——改完白名单必须**开新会话**才生效。角色表文件（`~/.dsh/foreman.roles.yml`）不受这条限制，它每次调用都重读，改完保存即时生效。
 
 ## 插件（v1：路由裁决）
 
@@ -64,10 +78,10 @@ dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.
 
 派单本身仍走 dsh 原生 `subagent`（它已支持按次 `provider`/`model`/`reasoning_effort`），工单契约仍是文件。**插件不做的事**：不重造任务板、不接管派单、不碰持久化。
 
-装法见 [example.cordis.yml](example.cordis.yml)（含当前 7 个角色的完整表）。
+角色表的装法见上面「配置角色表」一节。也仍然兼容老接法：在 cordis config 里直接写 `roles: [...]`，非空时优先，`rolesFile` 被忽略（写法见 [example.cordis.yml](example.cordis.yml)；出厂 bundle 的 [cordis.patch.yml](cordis.patch.yml) 里不再带真实角色表）。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 20 项自检
+npm install && npm run build && node test/smoke.mjs   # 42 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
