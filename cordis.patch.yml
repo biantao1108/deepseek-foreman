@@ -13,3 +13,17 @@
       # rolesFile: ~/.dsh/foreman.roles.yml
       #
       # 仍然兼容老接法：也可以直接在这里写 roles: [...]，非空时优先，rolesFile 被忽略。
+  # 审查派单用 subagent_readonly：经这个实例派出的子会话只有读工具（read/grep/glob），
+  # 写工具从提示里消失、执行也会被拒——只读审查从「提示词自觉」变成运行时强制。
+  # 能否出现在会话里取决于 dsh preset 层；不存在时按 SKILL.md 的降级方案（提示词 + git 核实）执行。
+  - id: tool-subagent-readonly
+    name: '@deepseek-ai/dsh-tool-subagent'
+    config:
+      provider: spawn
+      toolName: subagent_readonly
+      backgroundMode: continuable
+      toolFilter:
+        allow:
+        - read
+        - grep
+        - glob

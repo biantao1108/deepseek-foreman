@@ -282,5 +282,26 @@ const freshEmpty = await mount({ roles: [], rolesFile: freshEmptyFile }).execute
 check('从没读到过好表时空表仍是「未配置」文案',
   freshEmpty.ok === false && freshEmpty.reason.includes('还没有启用中的角色'), true)
 
+// ── T201：bundle patch 里的只读审查实例 subagent_readonly ────────────────────
+// patch 结构错一个缩进就静默失效（README 记载的坑），所以这里解析后逐项断言。
+const patchRows = (() => {
+  const parsed = parseYaml(readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8'))
+  return Array.isArray(parsed) ? parsed : []
+})()
+const insertEntries = patchRows.flatMap((row) => (Array.isArray(row?.insert) ? row.insert : []))
+const readonlyEntry = insertEntries.find((e) => e?.id === 'tool-subagent-readonly')
+check('cordis.patch.yml 存在 id=tool-subagent-readonly 条目', !!readonlyEntry, true)
+check('readonly 条目 name 是 @deepseek-ai/dsh-tool-subagent',
+  readonlyEntry?.name, '@deepseek-ai/dsh-tool-subagent')
+check('readonly 条目 provider=spawn 且 toolName=subagent_readonly',
+  `${readonlyEntry?.config?.provider}/${readonlyEntry?.config?.toolName}`, 'spawn/subagent_readonly')
+check('toolFilter.allow 恰好是 read/grep/glob（顺序无关）',
+  (Array.isArray(readonlyEntry?.config?.toolFilter?.allow)
+    && readonlyEntry.config.toolFilter.allow.length === 3
+    && ['read', 'grep', 'glob'].every((t) => readonlyEntry.config.toolFilter.allow.includes(t))), true)
+check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
+  patchRows.length > 0 && patchRows.every((row) => row !== null && typeof row === 'object'
+    && !('id' in row) && Array.isArray(row.insert)), true)
+
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)

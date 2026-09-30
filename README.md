@@ -84,8 +84,12 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 
 角色表的装法见上面「配置角色表」一节。也仍然兼容老接法：在 cordis config 里直接写 `roles: [...]`，非空时优先，`rolesFile` 被忽略（写法见 [example.cordis.yml](example.cordis.yml)；出厂 bundle 的 [cordis.patch.yml](cordis.patch.yml) 里不再带真实角色表）。
 
+本包在 bundle patch 里还挂载了 **`subagent_readonly`**（只读审查实例）：经这个实例派出的子会话在**运行时**只有 `read` / `grep` / `glob` 三个读工具——写工具从提示里消失，执行也会被拒，只读审查从「提示词自觉」升级为运行时强制（原生 `subagent` 本身仍没有只读过滤参数，见上表）。
+
+注意：这个工具**能否出现在会话里取决于 dsh 的 preset 层**，本包只保证 bundle patch 这一层写对。若会话里没有 `subagent_readonly`，就按 [SKILL.md](skill/deepseek-foreman/SKILL.md) 的降级方案执行——审查提示词写明「不要改任何文件，只跑只读命令」，Lead 在审查前后各看一次 `git status` 核实。
+
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 62 项自检
+npm install && npm run build && node test/smoke.mjs   # 67 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
