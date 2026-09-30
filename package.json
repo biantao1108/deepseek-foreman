@@ -17,12 +17,17 @@
     "lib/index.js",
     "lib/index.d.ts",
     "cordis.patch.yml",
-    "roles.example.yml"
+    "roles.example.yml",
+    "skill/"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/biantao1108/deepseek-foreman"
+  },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.4",
     "yaml": "^2.9.1"
