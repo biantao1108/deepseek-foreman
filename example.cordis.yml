@@ -47,7 +47,15 @@
         provider: xiaomi-token-plan-cn
         model: mimo-v2.6-pro
         vision: true
-        note: 审 daily-code-offpeak / kimi 写的代码可以；审 daily-code 会被拒（同为小米）。
+        note: 审 daily-code-offpeak / copywriting / chores 写的代码可以；审 daily-code 会被拒（同为小米）。
+
+      # 第二审查路由：专审小米系写的代码。
+      - role: review-alt
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        vision: true
+        note: 厂商定位「面向软件工程、深度推理」，审 daily-code（小米）走这条。审 ui-design/lead 的产物会被拒（同为 kimi）。
 
       # 运营文案与图片识别。
       - role: copywriting
