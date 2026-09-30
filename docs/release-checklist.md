@@ -19,28 +19,49 @@ npm ci && npm run build && node test/smoke.mjs 2>&1 | tail -1
 
 期望：`全部通过（62 项）`。（项数随自检增长而变，以仓库 README 与 `test/smoke.mjs` 末尾输出为准。）
 
-### 1.2 脱敏检查（干净检出下应为零，仓库地址除外）
+### 1.2 脱敏检查（应为零）
 
-在**干净检出**（`git clone` 出来的目录，或已确认 `_tickets/`、`_receipts/` 不在工作树里）上跑：
+检查方向是**反向**的：清单里不写任何真实路由名（写了清单自己就成了泄露源），而是从本机私有角色表 `~/.dsh/foreman.roles.yml` 现读 `provider` / `model` / `vendor` 值，逐个在**已跟踪文件**里找。换台机器、换套路由都不用改清单。
 
 ```bash
-grep -rn "kimi-coding\|xiaomi-token\|MiniMax-M\|biantao\|/Volumes/" --include="*.md" --include="*.yml" --include="*.json" . | grep -v node_modules | grep -v package-lock
+node -e "
+const yaml=require('yaml'),fs=require('fs'),cp=require('child_process');
+const roles=yaml.parse(fs.readFileSync(process.env.HOME+'/.dsh/foreman.roles.yml','utf8')).roles||[];
+const self=require('./package.json').name.split('-');
+const raw=[...new Set(roles.flatMap(r=>[r.provider,r.model,r.vendor]).filter(Boolean))];
+const skip=raw.filter(w=>w.length<3||self.includes(w));
+const words=raw.filter(w=>!skip.includes(w));
+if(skip.length)console.error('note: skipped',skip.length,'value(s): repo name or shorter than 3 chars');
+const files=cp.execSync('git ls-files').toString().trim().split('\n').filter(f=>f&&!f.includes('package-lock'));
+const tok=c=>c!==undefined&&/[A-Za-z0-9_.-]/.test(c);
+let leak=0;
+for(const w of words)for(const f of files){
+  if(!fs.existsSync(f))continue;
+  fs.readFileSync(f,'utf8').split('\n').forEach((l,i)=>{
+    for(let p=l.indexOf(w);p>=0;p=l.indexOf(w,p+1))
+      if(!tok(l[p-1])&&!tok(l[p+w.length])){console.log('LEAK',w,'in',f+':'+(i+1));leak++}
+  });
+}
+console.log(leak===0?'no leaks':leak+' leaks');process.exit(leak?1:0)"
 ```
 
-期望：**只有 1 行**，即 `package.json` 的 `repository.url`。`biantao` 是 GitHub 账号名，这一行是仓库地址，属预期命中（2026-10-01 在干净检出等价命令上实测：只输出 `package.json:29`）。
+期望：`no leaks`，`exit=0`。有命中就逐条列出 `LEAK <值> in <文件>:<行>` 并以 `exit=1` 结束。两点口径：
 
-要「严格零输出」的口径，追加一条过滤：
+- **大小写敏感 + 独立词**：只有整个词才算命中，值出现在更长的词里不算（`-`、`.`、`_` 都算词的一部分）。这样「仓库自己的名字里恰好含某个厂商名」这类包含关系不会被误判成泄露。
+- **跳过两类词**：仓库 `package.json` 的 `name` 本身含有的词（公开发布，不可能是秘密），以及长度不足 3 的值（两字符档位无法与普通文本区分，误报大于信号）。被跳过的**只报条数**、不回显值，避免私有路由名进 CI 日志；`note:` 行走 stderr，stdout 只有结论。
+
+然后单独扫一遍通用本机路径形态——这类是机器特征、不是路由名，所以留在清单里。关键词一律写成字符类拆开，否则清单会自己命中自己：
 
 ```bash
-git ls-files '*.md' '*.yml' '*.json' | xargs grep -n "kimi-coding\|xiaomi-token\|MiniMax-M\|biantao\|/Volumes/" | grep -v '"url": "https://github.com/biantao1108/'
+git ls-files | xargs grep -nE '(/[V]olumes/|/[U]sers/|/[h]ome/|[A-Za-z]:\\[U]sers)'
 ```
 
 期望：无输出（`exit=1`）。
 
 另外两点：
 
-- `LICENSE` 里的 `biantao1108` 署名不在 `--include` 过滤范围内（`.md` / `.yml` / `.json`），不参与本检查；MIT 要求保留署名。
-- 本地未提交的工作树里，上面的原版命令会额外命中 `_tickets/`、`_receipts/`（已 gitignore）——那不是泄漏，是工作树噪音，所以发布前检查以干净检出为准。
+- `biantao` 是作者的 GitHub 账号名，`package.json` 的 `repository.url` 合法包含它，因此**不作检查词**（上面的命令从角色表取词，不会碰到它）；`LICENSE` 里的 `biantao1108` 署名同属预期，MIT 要求保留署名。
+- 命令只扫 `git ls-files` 列出的已跟踪文件，`_tickets/`、`_receipts/`（已 gitignore）不参与——本地工作树噪音不会干扰判定，也就不必再靠「干净检出」来排除。
 
 ### 1.3 版本号与 CHANGELOG 一致
 
