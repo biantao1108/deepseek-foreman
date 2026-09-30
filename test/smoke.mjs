@@ -13,8 +13,7 @@ apply({ tools: { register: (t) => { tool = t } } }, {
       peakWindows: ['09:00-12:00', '14:00-18:00'], peakDays: [1, 2, 3, 4, 5],
       holidays: ['2026-10-01', '2026-10-08'], fallback: 'daily-code',
     }),
-    route('review', 'xiaomi', 'xiaomi-token-plan-cn', 'mimo-v2.6-pro', { vision: true }),
-    route('review-alt', 'moonshot', 'kimi-coding', 'k3', { vision: true }),
+    route('review', 'moonshot', 'kimi-coding', 'k3', { vision: true }),
     route('copywriting', 'minimax', 'minimax-cn', 'MiniMax-M3.1-Flash-Preview', { vision: true }),
     route('chores', 'minimax', 'minimax-cn', 'MiniMax-M2.7', { maxOutputTokens: 131072 }),
   ],
@@ -40,12 +39,11 @@ const check = (name, got, want) => {
 }
 
 console.log('tool:', tool.name)
-check('无 role 列出全部角色', (await call({})).alternatives.length, 8)
-check('同厂商审查被拒 (review 审 daily-code)', (await call({ role: 'review', review_for: 'daily-code' })).ok, false)
+check('无 role 列出全部角色', (await call({})).alternatives.length, 7)
+check('K3 审小米写的 daily-code 放行（异族）', (await call({ role: 'review', review_for: 'daily-code' })).ok, true)
 check('跨厂商审查放行 (review 审 daily-code-offpeak)', (await call({ role: 'review', review_for: 'daily-code-offpeak' })).ok, true)
-check('第二审查路由放行 (review-alt 审 daily-code)', (await call({ role: 'review-alt', review_for: 'daily-code' })).ok, true)
-check('review-alt 审自家 kimi 产物被拒', (await call({ role: 'review-alt', review_for: 'ui-design' })).ok, false)
-check('拒审时给出别家候选', (await call({ role: 'review', review_for: 'daily-code' })).alternatives.some(r => r.provider !== 'xiaomi-token-plan-cn'), true)
+check('K3 审 K3 自己的产物被拒', (await call({ role: 'review', review_for: 'ui-design' })).ok, false)
+check('同厂商拒审时给出别家候选', (await call({ role: 'review', review_for: 'ui-design' })).alternatives.some(r => r.provider !== 'kimi-coding'), true)
 check('杂活不做视觉活', (await call({ role: 'chores', needs_vision: true })).ok, false)
 check('文案做视觉活', (await call({ role: 'copywriting', needs_vision: true })).ok, true)
 check('未知角色被拒', (await call({ role: 'nope' })).ok, false)
@@ -85,7 +83,7 @@ check('同一角色普通产出放行', (await tinyTool.execute({ role: 'tiny' }
 // example.cordis.yml 的角色名必须和自检一致，否则文档和代码会分叉
 const example = readFileSync(new URL('../example.cordis.yml', import.meta.url), 'utf8')
 const named = [...example.matchAll(/^      - role: (\S+)$/gm)].map(m => m[1])
-check('example.cordis.yml 角色数', named.length, 8)
+check('example.cordis.yml 角色数', named.length, 7)
 
 console.log(failed === 0 ? '\n全部通过' : `\n${failed} 项失败`)
 process.exit(failed === 0 ? 0 : 1)

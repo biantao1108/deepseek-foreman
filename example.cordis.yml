@@ -43,21 +43,14 @@
         fallback: daily-code
         note: 空闲时段半价。高峰被拒时自动改派 daily-code。
 
-      # 项目管理与验收审核。
+      # 验收审核 = K3（综合能力排序 K3 > glm5.3 > mimo-2.6-pro）。
+      # 审小米/minimax/deepseek 写的代码都是异族 ✓；审 lead/ui-design 的产物会被拒（同为 kimi）。
       - role: review
-        vendor: xiaomi
-        provider: xiaomi-token-plan-cn
-        model: mimo-v2.6-pro
-        vision: true
-        note: 审 daily-code-offpeak / copywriting / chores 写的代码可以；审 daily-code 会被拒（同为小米）。
-
-      # 第二审查路由：专审小米系写的代码。
-      - role: review-alt
         vendor: moonshot
         provider: kimi-coding
         model: k3
         vision: true
-        note: 厂商定位「面向软件工程、深度推理」，审 daily-code（小米）走这条。审 ui-design/lead 的产物会被拒（同为 kimi）。
+        note: 只找真问题，附文件:行号+代码证据。K3 自己写的活没人能异族审，等 GLM 5.3 开通后补。
 
       # 运营文案与图片识别。
       - role: copywriting
