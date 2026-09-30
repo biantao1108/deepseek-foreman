@@ -1,4 +1,4 @@
-# dsh-ticket-manager
+# dsh-foreman
 
 把活写成工单派给**更便宜的模型**去做，Lead 只负责拆活、派活、亲自重跑验收命令、派**另一家厂商**只读审查、逐条核实。人不在的时候按队列接着干。
 
@@ -35,7 +35,7 @@
 
 ```bash
 mkdir -p ~/.dsh/skills
-ln -s "$PWD/skill/dsh-ticket-manager" ~/.dsh/skills/dsh-ticket-manager
+ln -s "$PWD/skill/dsh-foreman" ~/.dsh/skills/dsh-foreman
 ```
 
 dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
@@ -78,8 +78,8 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 
 ```yaml
 - insert:
-    - id: ticket-manager
-      name: dsh-ticket-manager
+    - id: foreman
+      name: dsh-foreman
       config: { ... }
 ```
 

@@ -1,7 +1,7 @@
 {
-  "name": "dsh-ticket-manager",
-  "version": "0.1.0",
-  "description": "Ticket dispatch for DeepSeek Harness: role -> LLM route adjudication with peak-window, vision, output-size and cross-vendor-review constraints.",
+  "name": "dsh-foreman",
+  "version": "0.2.0",
+  "description": "Foreman for DeepSeek Harness: your best model leads, cheaper models build, a rival vendor reviews. Role-to-route adjudication with peak-window, vision, output-size and cross-vendor-review constraints.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

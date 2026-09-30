@@ -3,8 +3,8 @@
 # 2) 把下面这段并进 ~/.dsh/profiles/desktop/cordis.patch.yml。
 # 3) 改完必须开新会话（allowedModels 白名单在会话创建时快照）。
 
-- id: ticket-manager
-  name: 'dsh-ticket-manager'
+- id: foreman
+  name: 'dsh-foreman'
   config:
     roles:
       # 大脑：拆单、验收核实、拍板。最贵，只花在判断上，不写实现代码。

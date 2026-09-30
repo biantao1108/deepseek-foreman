@@ -5,7 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 /** Cordis plugin name. */
-export const name = 'ticket-manager'
+export const name = 'foreman'
 /** Services required by this plugin. */
 export const inject = ['tools']
 
@@ -136,7 +136,7 @@ function toRoute(route: RoleRoute): Route {
 /** Register the role-to-route adjudication tool. */
 export function apply(ctx: Context, config: Config) {
   const byRole = new Map(config.roles.map(route => [route.role, route]))
-  if (byRole.size !== config.roles.length) throw new Error('ticket-manager: duplicate role in config.roles')
+  if (byRole.size !== config.roles.length) throw new Error('foreman: duplicate role in config.roles')
 
   ctx.tools.register(defineTool({
     name: 'pick_route',
