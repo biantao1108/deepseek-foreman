@@ -22,7 +22,7 @@
 | 工人 | 外部 CLI 进程（pi / cursor-agent / codex / agy） | `subagent` 工具 + 按次传 `provider`/`model` |
 | 首次配置 | 扫描本机装了哪些 CLI、读各自 `--help`、写 `dispatch.sh` / `review.sh` | 读 `allowedModels` 白名单 + `list_subagent_models` 核对，**不写派单脚本** |
 | 工人脱离会话 | `nohup` / `Start-Process` | `run_in_background: true` 的 continuable 子会话 |
-| 只读审查 | 审查命令只开 `read,grep,find,ls` | `toolFilter: { allow: [...] }` |
+| 只读审查 | 审查命令只开 `read,grep,find,ls` | 审查提示词写明「不改文件，只跑只读命令」+ Lead 审查前后各看一次 `git status`（`subagent` 没有只读过滤参数） |
 | 上下文隔离 | 靠独立进程 | 靠独立 Session（子会话工作不进父对话） |
 | 省钱规则 | 一张单一个新会话 | 同上，**外加**：同模型继续干用 `subagent_fork`（保住前缀 KV cache），只有必须换模型才用 `subagent` |
 | 无人托管 | `queue.md` + 后台等待 | 同上，可叠 dsh 的 `goal` |
@@ -67,7 +67,7 @@ dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.
 装法见 [example.cordis.yml](example.cordis.yml)（含当前 7 个角色的完整表）。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 16 项自检
+npm install && npm run build && node test/smoke.mjs   # 20 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
