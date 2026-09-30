@@ -51,6 +51,27 @@ dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.
 
 两者缺一，`subagent` 就不会暴露 `provider`/`model` 入参，本 skill 的派单步骤无法执行。
 
+## 插件（v1：路由裁决）
+
+`src/index.ts` 是 Cordis 插件，注册一个模型可见工具 `pick_route`。它只管 skill 管不了的三件硬约束——这三条写在 markdown 里只能靠模型自觉，写在代码里才能拒：
+
+| 约束 | 配置字段 | 拒的时候 |
+|---|---|---|
+| **高峰时段锁** | `peakFrom` / `peakTo` / `peakDays` | 工作日 09:00–18:00 派给 deepseek → 拒，并自动给 `fallback` 角色 |
+| **视觉能力** | `vision` | 带截图的活派给纯文本角色 → 拒 |
+| **输出上限** | `maxOutputTokens` | 整篇长产出派给上限 <100K 的角色 → 拒 |
+| **异族审查** | `vendor` + 调用时传 `review_for` | 审查者和写代码者同厂商 → 拒，并列出别家候选 |
+
+派单本身仍走 dsh 原生 `subagent`（它已支持按次 `provider`/`model`/`reasoning_effort`），工单契约仍是文件。**插件不做的事**：不重造任务板、不接管派单、不碰持久化。
+
+装法见 [example.cordis.yml](example.cordis.yml)（含当前 7 个角色的完整表）。
+
+```bash
+npm install && npm run build && node test/smoke.mjs   # 16 项自检
+```
+
+`Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
+
 ## 状态
 
 私密开发中。macOS / dsh 桌面版 0.2.0-rc.2 上首次配置流程待实测。

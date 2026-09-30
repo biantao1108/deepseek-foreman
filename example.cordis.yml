@@ -1,0 +1,73 @@
+# 把本插件装进 dsh 桌面版 profile 的样子。
+# 1) 先让插件包可被解析：桌面版 Plugins 页装 npm 包，或本地 link。
+# 2) 把下面这段并进 ~/.dsh/profiles/desktop/cordis.patch.yml。
+# 3) 改完必须开新会话（allowedModels 白名单在会话创建时快照）。
+
+- id: ticket-manager
+  name: 'dsh-ticket-manager'
+  config:
+    roles:
+      # 大脑：拆单、验收核实、拍板。最贵，只花在判断上，不写实现代码。
+      - role: lead
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        note: 经理位。不看代码细节，只读工单/回执/审查意见。
+
+      # UI 设计与前端视觉判断。
+      - role: ui-design
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        vision: true
+        note: 需要看设计稿/截图的 UI 与视觉判断活。
+
+      # 日常编码主力，全天可用。
+      - role: daily-code
+        vendor: xiaomi
+        provider: xiaomi-token-plan-cn
+        model: mimo-v2.6-flash
+        vision: true
+        note: 日常实现。便宜、有视觉。
+
+      # 日常编码第二路，只在工作日 09:00-18:00 之外放行。
+      - role: daily-code-offpeak
+        vendor: deepseek
+        provider: deepseek-official
+        model: deepseek-flash
+        peakDays: [1, 2, 3, 4, 5]
+        peakFrom: '09:00'
+        peakTo: '18:00'
+        fallback: daily-code
+        note: 按量计费，高峰时段锁死以避开额度争抢。
+
+      # 项目管理与验收审核。
+      - role: review
+        vendor: xiaomi
+        provider: xiaomi-token-plan-cn
+        model: mimo-v2.6-pro
+        vision: true
+        note: 审 daily-code-offpeak / kimi 写的代码可以；审 daily-code 会被拒（同为小米）。
+
+      # 运营文案与图片识别。
+      - role: copywriting
+        vendor: minimax
+        provider: minimax-cn
+        model: MiniMax-M3.1-Flash-Preview
+        vision: true
+        note: 中文文案、看图识别。
+
+      # 杂活：硬约束不强、干错不影响结果的。
+      - role: chores
+        vendor: minimax
+        provider: minimax-cn
+        model: MiniMax-M2.7
+        maxOutputTokens: 131072
+        note: 最便宜档。窗口只有 204800，别塞大上下文；产出别要求整篇长文。
+
+# 备选（未开通，开通后加一行即可）：
+# - role: architect
+#   vendor: zhipu
+#   provider: <glm 的路由名>
+#   model: glm-5.3
+#   note: 架构师位，与 mimo-v2.6-pro 同类。
