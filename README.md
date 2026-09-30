@@ -72,6 +72,21 @@ npm install && npm run build && node test/smoke.mjs   # 16 项自检
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
 
+## 踩过的坑：bundle patch 必须用 `insert:`
+
+bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
+
+```yaml
+- insert:
+    - id: ticket-manager
+      name: dsh-ticket-manager
+      config: { ... }
+```
+
+写成裸条目 `- id: ... / name: ...` 会被解释为**按 id 覆盖已存在的行**；组合里没有这一行时**静默不生效**——不报错、不告警，插件页显示「这个插件包不包含任何组件」，模型侧 `NO_TOOL`。官方规范见 [Package and install a plugin](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/user/develop/basic/publish.md)。
+
+另外：**手改 bundle 的 patch 文件不会通知运行中的 Host**（管理器之外的改动"announces nothing"）。改完要在插件页把开关关再开，或重启 app，才会重新应用这一层。
+
 ## 状态
 
 私密开发中。macOS / dsh 桌面版 0.2.0-rc.2 上首次配置流程待实测。

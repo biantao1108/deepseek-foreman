@@ -1,77 +1,80 @@
 # dsh-ticket-manager bundle patch — 安装本包即挂载 pick_route 并带上出厂角色表。
+# 关键：bundle 层新增插件行必须包在 insert: 下；裸条目是按 id 覆盖已有行，匹配不到会静默失效。
 # 用户 profile 的 cordis.patch.yml 里同 id 条目可整体覆盖 config.roles。
-- name: dsh-ticket-manager
-  config:
-    roles:
-    - role: lead
-      vendor: moonshot
-      provider: kimi-coding
-      model: k3
-      note: 经理位。不看代码细节，只读工单/回执/审查意见。
-    - role: ui-design
-      vendor: moonshot
-      provider: kimi-coding
-      model: k3
-      vision: true
-      note: 需要看设计稿/截图的 UI 与视觉判断活。
-    - role: daily-code
-      vendor: xiaomi
-      provider: xiaomi-token-plan-cn
-      model: mimo-v2.6-flash
-      vision: true
-      note: 日常实现。便宜、有视觉。
-    - role: daily-code-offpeak
-      vendor: deepseek
-      provider: deepseek-official
-      model: deepseek-flash
-      peakDays:
-      - 1
-      - 2
-      - 3
-      - 4
-      - 5
-      peakWindows:
-      - 09:00-12:00
-      - 14:00-18:00
-      holidays:
-      - '2026-01-01'
-      - '2026-02-09'
-      - '2026-02-10'
-      - '2026-02-11'
-      - '2026-02-12'
-      - '2026-02-13'
-      - '2026-02-16'
-      - '2026-02-17'
-      - '2026-04-04'
-      - '2026-04-06'
-      - '2026-05-01'
-      - '2026-05-04'
-      - '2026-05-05'
-      - '2026-06-19'
-      - '2026-09-25'
-      - '2026-10-01'
-      - '2026-10-02'
-      - '2026-10-05'
-      - '2026-10-06'
-      - '2026-10-07'
-      - '2026-10-08'
-      fallback: daily-code
-      note: 空闲时段半价。高峰被拒时自动改派 daily-code。
-    - role: review
-      vendor: moonshot
-      provider: kimi-coding
-      model: k3
-      vision: true
-      note: 只找真问题，附文件:行号+代码证据。K3 自己写的活没人能异族审，等 GLM 5.3 开通后补。
-    - role: copywriting
-      vendor: minimax
-      provider: minimax-cn
-      model: MiniMax-M3.1-Flash-Preview
-      vision: true
-      note: 中文文案、看图识别。
-    - role: chores
-      vendor: minimax
-      provider: minimax-cn
-      model: MiniMax-M2.7
-      maxOutputTokens: 131072
-      note: 最便宜档。窗口只有 204800，别塞大上下文；产出别要求整篇长文。
+- insert:
+  - id: ticket-manager
+    name: dsh-ticket-manager
+    config:
+      roles:
+      - role: lead
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        note: 经理位。不看代码细节，只读工单/回执/审查意见。
+      - role: ui-design
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        vision: true
+        note: 需要看设计稿/截图的 UI 与视觉判断活。
+      - role: daily-code
+        vendor: xiaomi
+        provider: xiaomi-token-plan-cn
+        model: mimo-v2.6-flash
+        vision: true
+        note: 日常实现。便宜、有视觉。
+      - role: daily-code-offpeak
+        vendor: deepseek
+        provider: deepseek-official
+        model: deepseek-flash
+        peakDays:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        peakWindows:
+        - 09:00-12:00
+        - 14:00-18:00
+        holidays:
+        - '2026-01-01'
+        - '2026-02-09'
+        - '2026-02-10'
+        - '2026-02-11'
+        - '2026-02-12'
+        - '2026-02-13'
+        - '2026-02-16'
+        - '2026-02-17'
+        - '2026-04-04'
+        - '2026-04-06'
+        - '2026-05-01'
+        - '2026-05-04'
+        - '2026-05-05'
+        - '2026-06-19'
+        - '2026-09-25'
+        - '2026-10-01'
+        - '2026-10-02'
+        - '2026-10-05'
+        - '2026-10-06'
+        - '2026-10-07'
+        - '2026-10-08'
+        fallback: daily-code
+        note: 空闲时段半价。高峰被拒时自动改派 daily-code。
+      - role: review
+        vendor: moonshot
+        provider: kimi-coding
+        model: k3
+        vision: true
+        note: 只找真问题，附文件:行号+代码证据。K3 自己写的活没人能异族审，等 GLM 5.3 开通后补。
+      - role: copywriting
+        vendor: minimax
+        provider: minimax-cn
+        model: MiniMax-M3.1-Flash-Preview
+        vision: true
+        note: 中文文案、看图识别。
+      - role: chores
+        vendor: minimax
+        provider: minimax-cn
+        model: MiniMax-M2.7
+        maxOutputTokens: 131072
+        note: 最便宜档。窗口只有 204800，别塞大上下文；产出别要求整篇长文。
