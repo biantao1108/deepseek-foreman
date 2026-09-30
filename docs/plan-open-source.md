@@ -3,6 +3,8 @@
 > 现状：`dsh-ticket-manager`，私有仓库，本机 link 安装，角色表硬编码在 bundle patch。
 > 目标：开源、改名、装一个 npm 包即可用，模型配置外置，让「高阶模型当经理、按价值派活、异族审查保质」成为 dsh 的即装即用能力。
 
+本文档占位映射（vendorX/modelY）仅本文档内有效。
+
 ## 0. 一页纸
 
 把项目改名为 **`dsh-foreman`**（工头，最直白），发布到 npm。用户三步上手：插件页装包 → 把 `roles.example.yml` 拷成 `~/.dsh/foreman.roles.yml` 按注释填自己白名单里的路由 → 开新会话。插件提供三件硬能力：`pick_route`（角色→路由裁决，含高峰/视觉/长文/异族审查四条硬约束）、`subagent_readonly`（物理只读的审查派单实例）、角色表**热更新**（改文件即生效，不用重启）。skill（工单 SOP）随包自动软链进 `~/.dsh/skills/`。
@@ -24,7 +26,7 @@
 2. **`toolFilter` 真实存在，但形态与旧文档相反**：它是 `dsh-tool-subagent` 的**实例级 config**（`toolFilter: { allow: [...] }`），对该实例派出的所有子会话**强制生效**（工具从提示消失 + 执行拒绝），不是按次参数。base bundle 已示范同一插件多实例（`subagent` + `subagent_fork` 两个 toolName）。→ 只读审查的正确实现是多挂一个只读实例，见 §4.3。
 3. `spawn` provider 声明 `toolFilter: true` 能力；allow 名单里写了不存在的工具名会**启动即报错**（fail loud），名单必须对照 standard preset 的真实工具集。
 4. **ExFAT 坑**：本卷上 write 类工具原子写必报 ENOTSUP，派单提示必须写明「用 shell 写文件」（已进 workers.md，开源版进 SKILL.md 的坑清单）。
-5. **当前出厂角色表含本机私有路由**（`kimi-coding/k3`、`xiaomi-token-plan-cn/*` 等），开源发布前必须抽走——这是配置外置的强制理由，不只是便利性。
+5. **当前出厂角色表含本机私有路由**（真实路由名已脱敏），开源发布前必须抽走——这是配置外置的强制理由，不只是便利性。
 6. SOP 已于 2026-10-01 跑通首张真工单（T001/T002：派单→验收→k3 异族审查→逐条核实→修复→提交），流程本身已验证。
 7. npm 候选名 `dsh-foreman` / `dsh-model-foreman` / `dsh-dispatcher` / `dsh-conductor` / `dsh-model-crew` 均 404（可用）。
 

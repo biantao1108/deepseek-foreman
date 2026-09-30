@@ -2,75 +2,27 @@
 # 1) 先让插件包可被解析：桌面版 Plugins 页装 npm 包，或本地 link。
 # 2) 把下面这段并进 ~/.dsh/profiles/desktop/cordis.patch.yml。
 # 3) 改完必须开新会话（allowedModels 白名单在会话创建时快照）。
+#
+# 这是「老接法」示意：在 config 里指定角色表，下面两种方式二选一。
+# 出厂模板里没有任何真实路由名，provider / model 请换成你自己白名单里的路由。
+# 字段完整说明见 roles.example.yml。
 
 - id: foreman
   name: 'dsh-foreman'
   config:
-    roles:
-      # 大脑：拆单、验收核实、拍板。最贵，只花在判断上，不写实现代码。
-      - role: lead
-        vendor: moonshot
-        provider: kimi-coding
-        model: k3
-        note: 经理位。不看代码细节，只读工单/回执/审查意见。
+    # ── 方式 a（推荐）：把角色表外置成文件 ─────────────────────────────
+    # 插件每次执行 pick_route 前查该文件的 mtime，改完保存即生效，不用重启。
+    # 文件不存在时会自动铺一份带中文注释的模板（内容同包内 roles.example.yml），
+    # 并进入「未配置」引导态，直到你按注释填好 provider / model。
+    # 开头写 ~/ 会展开成家目录；本行整行注释掉则用默认位置 ~/.dsh/foreman.roles.yml。
+    # rolesFile: ~/.dsh/foreman.roles.yml
 
-      # UI 设计与前端视觉判断。
-      - role: ui-design
-        vendor: moonshot
-        provider: kimi-coding
-        model: k3
-        vision: true
-        note: 需要看设计稿/截图的 UI 与视觉判断活。
-
-      # 日常编码主力，全天可用。
-      - role: daily-code
-        vendor: xiaomi
-        provider: xiaomi-token-plan-cn
-        model: mimo-v2.6-flash
-        vision: true
-        note: 日常实现。便宜、有视觉。
-
-      # 日常编码第二路：DeepSeek 空闲时段价格是高峰的一半，所以只在空闲时派。
-      # 高峰 = 北京时间周一至周五 09:00-12:00 与 14:00-18:00（两段，12:00-14:00 午休算空闲）；
-      # 周末与中国法定节假日全天为空闲。
-      - role: daily-code-offpeak
-        vendor: deepseek
-        provider: deepseek-official
-        model: deepseek-flash
-        peakDays: [1, 2, 3, 4, 5]
-        peakWindows: ['09:00-12:00', '14:00-18:00']
-        holidays: ['2026-01-01', '2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13', '2026-02-16', '2026-02-17', '2026-04-04', '2026-04-06', '2026-05-01', '2026-05-04', '2026-05-05', '2026-06-19', '2026-09-25', '2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08']
-        fallback: daily-code
-        note: 空闲时段半价。高峰被拒时自动改派 daily-code。
-
-      # 验收审核 = K3（综合能力排序 K3 > glm5.3 > mimo-2.6-pro）。
-      # 审小米/minimax/deepseek 写的代码都是异族 ✓；审 lead/ui-design 的产物会被拒（同为 kimi）。
-      - role: review
-        vendor: moonshot
-        provider: kimi-coding
-        model: k3
-        vision: true
-        note: 只找真问题，附文件:行号+代码证据。K3 自己写的活没人能异族审，等 GLM 5.3 开通后补。
-
-      # 运营文案与图片识别。
-      - role: copywriting
-        vendor: minimax
-        provider: minimax-cn
-        model: MiniMax-M3.1-Flash-Preview
-        vision: true
-        note: 中文文案、看图识别。
-
-      # 杂活：硬约束不强、干错不影响结果的。
-      - role: chores
-        vendor: minimax
-        provider: minimax-cn
-        model: MiniMax-M2.7
-        maxOutputTokens: 131072
-        note: 最便宜档。窗口只有 204800，别塞大上下文；产出别要求整篇长文。
-
-# 备选（未开通，开通后加一行即可）：
-# - role: architect
-#   vendor: zhipu
-#   provider: <glm 的路由名>
-#   model: glm-5.3
-#   note: 架构师位，与 mimo-v2.6-pro 同类。
+    # ── 方式 b（内联，兼容旧接法）：直接在 config 里写角色表 ───────────
+    # 内联 roles 非空时优先，rolesFile 会被忽略。下面只留一条占位角色，
+    # 真实角色表的写法（多角色、异族审查、时段限制等）见 roles.example.yml。
+    # roles:
+    #   - role: lead
+    #     vendor: vendor-a
+    #     provider: YOUR_PROVIDER
+    #     model: YOUR_MODEL
+    #     note: 占位示例。完整字段说明见 roles.example.yml。

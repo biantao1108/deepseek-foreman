@@ -1,3 +1,5 @@
+[English](README.en.md) | 中文
+
 # dsh-foreman
 
 把活写成工单派给**更便宜的模型**去做，Lead 只负责拆活、派活、亲自重跑验收命令、派**另一家厂商**只读审查、逐条核实。人不在的时候按队列接着干。
@@ -71,7 +73,7 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 
 | 约束 | 配置字段 | 拒的时候 |
 |---|---|---|
-| **高峰时段锁** | `peakFrom` / `peakTo` / `peakDays` | 工作日 09:00–18:00 派给 deepseek → 拒，并自动给 `fallback` 角色 |
+| **高峰时段锁** | `peakWindows` / `peakDays` | 工作日 09:00–18:00 派给 deepseek → 拒，并自动给 `fallback` 角色 |
 | **视觉能力** | `vision` | 带截图的活派给纯文本角色 → 拒 |
 | **输出上限** | `maxOutputTokens` | 整篇长产出派给上限 <100K 的角色 → 拒 |
 | **异族审查** | `vendor` + 调用时传 `review_for` | 审查者和写代码者同厂商 → 拒，并列出别家候选 |
@@ -81,7 +83,7 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 角色表的装法见上面「配置角色表」一节。也仍然兼容老接法：在 cordis config 里直接写 `roles: [...]`，非空时优先，`rolesFile` 被忽略（写法见 [example.cordis.yml](example.cordis.yml)；出厂 bundle 的 [cordis.patch.yml](cordis.patch.yml) 里不再带真实角色表）。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 42 项自检
+npm install && npm run build && node test/smoke.mjs   # 62 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
@@ -105,9 +107,9 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 
 已装进 dsh 桌面版 0.2.0-rc.2（Intel iMac）并 live 验证：冷启动正常，`pick_route` 可被模型调用，视觉约束会真的拦截并给 fallback。
 
-工单 SOP（`skill/`）**尚未在真实任务上跑过**，`_tickets/` 契约也还没在任何项目里建起来。
+工单 SOP（`skill/`）已在真实任务上跑过：2026-10-01 用本项目自己的流程跑完 T001/T002、T101、T102、T102b，`_tickets/` / `_receipts/` 契约已在本项目建起来，「派单 → 施工 → 异族只读审查 → 逐条核实 → 修复回单」整条链路闭环。
 
-接手请看 [docs/交接.md](docs/交接.md)。
+实证记录见 [docs/dogfooding.md](docs/dogfooding.md)。
 
 ## 许可
 
