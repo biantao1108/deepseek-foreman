@@ -1,6 +1,6 @@
 # Dogfooding：用自己的工单流程跑出来的第一批实证
 
-2026-10-01 凌晨，本项目用它自己的工单托管流程（`skill/dsh-foreman/`）完成了第一批真实工单：派单 → 施工 → 异族只读审查 → Lead 逐条核实 → 修复回单。这份记录是公开版，绝对路径与私有路由名都已脱敏，路由一律写成 `vendorX/modelY` 占位。
+2026-10-01 凌晨，本项目用它自己的工单托管流程（`skill/deepseek-foreman/`）完成了第一批真实工单：派单 → 施工 → 异族只读审查 → Lead 逐条核实 → 修复回单。这份记录是公开版，绝对路径与私有路由名都已脱敏，路由一律写成 `vendorX/modelY` 占位。
 
 本文档占位映射（vendorX/modelY）仅本文档内有效。
 
@@ -37,5 +37,5 @@
 
 ```text
 - 2026-10-01 00:25 | T001+T002 文档漂移修复 | 验收通过，vendorA/modelA 异族审查，低风险发现经核实成立并已修 | 施工 vendorB/modelB @ low（长假低价窗口）
-- 2026-10-01 01:15 | T101 改名 dsh-foreman + T102/T102b 角色表外置热更新 | 62 项自检全过，vendorA/modelA 审查发现全部核实并修完 | 施工 vendorB/modelB（低价窗口）
+- 2026-10-01 01:15 | T101 改名 deepseek-foreman + T102/T102b 角色表外置热更新 | 62 项自检全过，vendorA/modelA 审查发现全部核实并修完 | 施工 vendorB/modelB（低价窗口）
 ```

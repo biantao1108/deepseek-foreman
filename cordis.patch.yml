@@ -1,9 +1,9 @@
-# dsh-foreman bundle patch — 安装本包即挂载 pick_route 工具。
+# deepseek-foreman bundle patch — 安装本包即挂载 pick_route 工具。
 # 关键：bundle 层新增插件行必须包在 insert: 下；裸条目是按 id 覆盖已有行，匹配不到会静默失效。
 # 用户 profile 的 cordis.patch.yml 里同 id 条目可整体覆盖本行的 config（roles 或 rolesFile 都行）。
 - insert:
   - id: foreman
-    name: dsh-foreman
+    name: deepseek-foreman
     config:
       # 角色表已外置成文件：插件每次执行 pick_route 前查该文件的 mtime，改完保存即生效，不用重启。
       # 这里留空（config 里不写 rolesFile）就用默认位置 ~/.dsh/foreman.roles.yml。

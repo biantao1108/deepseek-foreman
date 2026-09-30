@@ -1,6 +1,8 @@
 English | [中文](README.md)
 
-# dsh-foreman
+> A community plugin for DeepSeek Harness, not affiliated with DeepSeek.
+
+# deepseek-foreman
 
 Write work as tickets and dispatch them to **cheaper models**; the Lead only breaks down the work, dispatches it, re-runs the acceptance commands personally, sends it to a **different vendor** for read-only review, and verifies every finding one by one. When nobody is around, it keeps working through the queue.
 
@@ -37,7 +39,7 @@ Install into dsh's user skill root (**symlink, do not copy**; repo edits take ef
 
 ```bash
 mkdir -p ~/.dsh/skills
-ln -s "$PWD/skill/dsh-foreman" ~/.dsh/skills/dsh-foreman
+ln -s "$PWD/skill/deepseek-foreman" ~/.dsh/skills/deepseek-foreman
 ```
 
 dsh's `skill-filesystem` scans `~/.dsh/skills` (the `user-dsh` root) and `~/.agents/skills` (the `user-agents` root) by default. Installing here serves dsh only and does not pollute the four-tool shared `~/.agents/skills`.
@@ -95,7 +97,7 @@ In a bundle's `cordis.patch.yml`, **a new plugin row must be wrapped under `inse
 ```yaml
 - insert:
     - id: foreman
-      name: dsh-foreman
+      name: deepseek-foreman
       config: { ... }
 ```
 

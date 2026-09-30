@@ -1,6 +1,8 @@
 [English](README.en.md) | 中文
 
-# dsh-foreman
+> 一个 DeepSeek Harness 社区插件，与 DeepSeek 官方无隶属关系。
+
+# deepseek-foreman
 
 把活写成工单派给**更便宜的模型**去做，Lead 只负责拆活、派活、亲自重跑验收命令、派**另一家厂商**只读审查、逐条核实。人不在的时候按队列接着干。
 
@@ -37,7 +39,7 @@
 
 ```bash
 mkdir -p ~/.dsh/skills
-ln -s "$PWD/skill/dsh-foreman" ~/.dsh/skills/dsh-foreman
+ln -s "$PWD/skill/deepseek-foreman" ~/.dsh/skills/deepseek-foreman
 ```
 
 dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
@@ -95,7 +97,7 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 ```yaml
 - insert:
     - id: foreman
-      name: dsh-foreman
+      name: deepseek-foreman
       config: { ... }
 ```
 

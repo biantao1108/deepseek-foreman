@@ -1,4 +1,4 @@
-# dsh-foreman 角色表（外部配置文件）
+# deepseek-foreman 角色表（外部配置文件）
 #
 # 插件每次执行 pick_route 前都会重新看这个文件的 mtime：
 # 改完保存，下一次调用立即生效，不用重启 dsh。文件写坏了也不会炸——

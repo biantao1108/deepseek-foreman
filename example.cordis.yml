@@ -8,7 +8,7 @@
 # 字段完整说明见 roles.example.yml。
 
 - id: foreman
-  name: 'dsh-foreman'
+  name: 'deepseek-foreman'
   config:
     # ── 方式 a（推荐）：把角色表外置成文件 ─────────────────────────────
     # 插件每次执行 pick_route 前查该文件的 mtime，改完保存即生效，不用重启。
