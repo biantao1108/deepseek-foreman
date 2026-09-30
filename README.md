@@ -26,7 +26,7 @@
 | 工人 | 外部 CLI 进程（pi / cursor-agent / codex / agy） | `subagent` 工具 + 按次传 `provider`/`model` |
 | 首次配置 | 扫描本机装了哪些 CLI、读各自 `--help`、写 `dispatch.sh` / `review.sh` | 读 `allowedModels` 白名单 + `list_subagent_models` 核对，**不写派单脚本** |
 | 工人脱离会话 | `nohup` / `Start-Process` | `run_in_background: true` 的 continuable 子会话 |
-| 只读审查 | 审查命令只开 `read,grep,find,ls` | 审查提示词写明「不改文件，只跑只读命令」+ Lead 审查前后各看一次 `git status`（`subagent` 没有只读过滤参数） |
+| 只读审查 | 审查命令只开 `read,grep,find,ls` | 首选 `subagent_readonly` 物理只读（运行时只有 `read`/`grep`/`glob`）；会话里没有该工具时降级为审查提示词写明「不改文件，只跑只读命令」+ Lead 审查前后各看一次 `git status` |
 | 上下文隔离 | 靠独立进程 | 靠独立 Session（子会话工作不进父对话） |
 | 省钱规则 | 一张单一个新会话 | 同上，**外加**：同模型继续干用 `subagent_fork`（保住前缀 KV cache），只有必须换模型才用 `subagent` |
 | 无人托管 | `queue.md` + 后台等待 | 同上，可叠 dsh 的 `goal` |
@@ -35,32 +35,37 @@
 
 ## 安装
 
-**装包即自动安装**：在 dsh 插件页装上 `deepseek-foreman`，插件首次加载就把包内 `skill/deepseek-foreman/` 装进 `~/.dsh/skills/deepseek-foreman`，不再手动软链：
+从装包到派出第一张工单 ≤ 10 分钟，0–6 步照做即可。逐步细节与故障速查见详版 [docs/install-flow.md](docs/install-flow.md)。
 
-- 先建软链（改仓库即生效），软链被系统拒绝（如 Windows 权限）自动退化为递归拷贝；
-- 已装过（软链或目录）一律不动，不会覆盖；
-- 两步都失败也不抛错、不影响 dsh 启动，失败原因记进 `setup`（见下节）；插件配置 `installSkill: false` 可关闭自动安装。
+0. **dsh 桌面版**，已配好 ≥2 家厂商的 LLM 路由（API key 各家的）。
+1. **`allowedModels` 白名单**（`@deepseek-ai/dsh-tool-subagent/model-selection-settings`）：把允许子任务使用的 `provider/model` 列进去，**至少两家不同厂商**（异族审查的硬要求）。改完白名单要开新会话——它是会话快照，详见[前置条件](#前置条件)。
+2. **装包**：dsh 插件页安装 `deepseek-foreman`，安装即生效的**四件套**——
+   - 挂载 `pick_route`（路由裁决：高峰时段锁、视觉、输出上限、异族审查四条硬约束，见下文「插件」一节）；
+   - 挂载 `subagent_readonly`（只读审查实例：经它派出的子会话在运行时只有 `read` / `grep` / `glob` 三个读工具）；
+   - 自动把工单 skill 装进 `~/.dsh/skills/deepseek-foreman`：先建软链（改仓库即生效），软链被系统拒绝（如 Windows 权限）自动退化为递归拷贝；已装过（软链或目录）一律不动，不会覆盖；两步都失败也不抛错、不影响 dsh 启动，失败原因记进 `setup`（见第 5 步）；插件配置 `installSkill: false` 可关闭自动安装；
+   - 发现没有角色表 → 自动在 `~/.dsh/foreman.roles.yml` 铺一份带中文注释的模板（内容就是包里的 [roles.example.yml](roles.example.yml)），插件进入「未配置」引导态——不报错、不影响 dsh 启动。
 
-dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
+   dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
+3. **开新会话**：让白名单快照覆盖到新装的实例。
+4. **编辑 `~/.dsh/foreman.roles.yml`**：把模板里「组合 A」（单一厂商全家桶）或「组合 B」（多厂商混合）其中一组的注释解开（**只解一组**），`provider` / `model` 换成第 1 步白名单里已有的路由。**保存即生效**——`pick_route` 每次调用查 mtime 热更新，不用重启；字段逐条有注释，详见下文「配置角色表」一节。
+5. **自检**：对 dsh 说「**调 pick_route 看看 setup**」。`pick_route` 不带 role 即自检模式，返回的 `setup` 一眼看到还缺什么：
 
-### 验证安装
+   | 字段 | 内容 |
+   |---|---|
+   | `skill` | skill 安装结果：`linked` / `copied` / `exists` / `disabled` / `failed: ...` |
+   | `rolesFile` | 角色表路径、状态（`ok` / `unconfigured` / `error`）、角色数与错误摘要 |
+   | `allowlist` | 扫各 profile 的 `cordis.patch.yml` 拿到的 `allowedModels` 白名单，与角色表对账；`unmatchedRoles` 列出不在白名单的角色 |
+   | `hints` | 有问题时的一句人话指引（如「角色 daily-code 的路由不在 allowedModels，把它加进白名单后开新会话」） |
 
-开一个新会话，对 dsh 说：「**调 pick_route 看看 setup**」。`pick_route` 不带 role 即自检模式，返回的 `setup` 一眼看到还缺什么：
-
-| 字段 | 内容 |
-|---|---|
-| `skill` | skill 安装结果：`linked` / `copied` / `exists` / `disabled` / `failed: ...` |
-| `rolesFile` | 角色表路径、状态（`ok` / `unconfigured` / `error`）、角色数与错误摘要 |
-| `allowlist` | 扫各 profile 的 `cordis.patch.yml` 拿到的 `allowedModels` 白名单，与角色表对账；`unmatchedRoles` 列出不在白名单的角色 |
-| `hints` | 有问题时的一句人话指引（如「角色 daily-code 的路由不在 allowedModels，把它加进白名单后开新会话」） |
+6. **走工单**：对 dsh 说「**走工单：把 xxx 项目里的 yyy 做了**」。之后 SOP 自动运转：写工单 → `pick_route` 选路由 → `subagent` 派单 → Lead 重跑验收 → `subagent_readonly` 派异族只读审查 → 逐条核实 → 收尾。用户不在时说「我走了你接着干」进入无人托管。
 
 ## 配置角色表（`~/.dsh/foreman.roles.yml`）
 
-角色表不在 cordis config 里，而在一个外部 YAML 文件，默认 `~/.dsh/foreman.roles.yml`（可用插件的 `rolesFile` 字段换位置）。三步：
+角色表不在 cordis config 里，而在一个外部 YAML 文件，默认 `~/.dsh/foreman.roles.yml`（可用插件的 `rolesFile` 字段换位置）。
 
-1. **装包**：在插件页装上本包，skill 随插件首次加载**自动装进** `~/.dsh/skills`（见「安装」），并按[前置条件](#前置条件)把插件挂上。插件首次加载时若发现角色表文件不存在，会**自动铺一份带中文注释的模板**（内容就是包里的 [roles.example.yml](roles.example.yml)），并进入「未配置」引导态——`pick_route` 全部返回 `ok:false`，reason 写明文件位置和下一步（「按注释填好 provider/model，保存即生效」），插件本身不报错、不影响 dsh 启动。
-2. **编辑 `~/.dsh/foreman.roles.yml`**：把模板里「组合 A」或「组合 B」其中一组的注释解开（**只解一组**，同时解开会出现两个顶层 `roles:` 键），再把 `provider` / `model` 换成你自己白名单里已有的路由。
-3. **开新会话**：`allowedModels` 白名单是会话快照，改白名单要开新会话（下一节）。角色表文件不受这条限制。
+装包时若发现该文件不存在，插件会**自动铺一份带中文注释的模板**（内容就是包里的 [roles.example.yml](roles.example.yml)）并进入「未配置」引导态——`pick_route` 全部返回 `ok:false`，reason 写明文件位置和下一步（「按注释填好 provider/model，保存即生效」），插件本身不报错、不影响 dsh 启动。
+
+要改的就是安装第 4 步这一件事：把模板里「组合 A」（单一厂商全家桶）或「组合 B」（多厂商混合）其中一组的注释解开（**只解一组**，同时解开会出现两个顶层 `roles:` 键），再把 `provider` / `model` 换成你自己白名单里已有的路由。改白名单要开新会话（见[前置条件](#前置条件)）；角色表文件不受这条限制，保存即生效。
 
 ```bash
 $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
@@ -99,7 +104,7 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 注意：这个工具**能否出现在会话里取决于 dsh 的 preset 层**，本包只保证 bundle patch 这一层写对。若会话里没有 `subagent_readonly`，就按 [SKILL.md](skill/deepseek-foreman/SKILL.md) 的降级方案执行——审查提示词写明「不要改任何文件，只跑只读命令」，Lead 在审查前后各看一次 `git status` 核实。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 94 项自检
+npm install && npm run build && node test/smoke.mjs   # 107 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。

@@ -11,6 +11,10 @@
 
 - **角色表外置**：角色路由从 cordis config 抽到用户文件 `~/.dsh/foreman.roles.yml`（`rolesFile` 可改路径）。文件不存在时插件自动铺一份带中文注释的模板并进入「未配置」引导态（`pick_route` 返回 `ok:false` 并写明下一步），不阻断 dsh 启动。
 - **角色表热更新**：`pick_route` 每次调用比对 `rolesFile` 的 mtime，改动保存即生效，不用重启、不用关开插件。文件写坏或写成空表时保留上一份可用角色表并说明错在哪，改好保存后下次调用自动恢复。
+- **`subagent_readonly` 只读审查实例**：bundle patch 挂载只读子代理，经它派出的子会话在运行时只有 `read` / `grep` / `glob` 三个读工具——只读审查从「提示词自觉」升级为运行时强制。preset 层未放行导致会话里没有该工具时，按 SKILL.md 降级方案走（提示词只读 + Lead 审查前后各看一次 `git status`）。
+- **skill 自动安装**：插件首次加载自动把包内 `skill/deepseek-foreman/` 装进 `~/.dsh/skills/deepseek-foreman`（先软链、被系统拒绝退化为递归拷贝；已装过不动；失败不抛错、记进 `setup`，`installSkill: false` 可关）。
+- **`pick_route` setup 自检（doctor）**：不带 `role` 调用即自检——角色表路径与状态、skill 安装结果、`allowedModels` 白名单对账（`unmatchedRoles` 列出不在白名单的角色）、`hints` 写明下一步，配置对不对一次看清。
+- **安装流程文档**：`docs/install-flow.md`（0–6 步从装包到派第一张工单 + 故障速查 + 设计原则），README 中英文安装节按它对齐。
 - **CI**：`.github/workflows/ci.yml`，push / PR 触发，Node 20 与 22 矩阵跑 `npm ci && npm run build && node test/smoke.mjs`。
 - **发布清单**：`docs/release-checklist.md`（脱敏 grep、版本一致性、打包内容、npm publish、发布后从 registry 装一遍验证）。
 - **英文 README**：`README.en.md`，与中文版互链。

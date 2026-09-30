@@ -26,7 +26,7 @@ dsh's `subagent` tool accepts `provider` / `model` / `reasoning_effort` **at cal
 | Workers | external CLI processes (pi / cursor-agent / codex / agy) | `subagent` tool + per-call `provider`/`model` |
 | First-time setup | scan which CLIs are installed, read each `--help`, write `dispatch.sh` / `review.sh` | read the `allowedModels` allowlist + cross-check with `list_subagent_models`; **no dispatch scripts written** |
 | Worker detached from session | `nohup` / `Start-Process` | a continuable child session with `run_in_background: true` |
-| Read-only review | the review command opens only `read,grep,find,ls` | the review prompt states "do not modify files; run read-only commands only" + the Lead checks `git status` before and after (`subagent` has no read-only filter parameter) |
+| Read-only review | the review command opens only `read,grep,find,ls` | `subagent_readonly` first: physical read-only (only `read`/`grep`/`glob` at runtime); when that tool is absent from the session, fall back to a review prompt stating "do not modify files; run read-only commands only" + the Lead checks `git status` before and after |
 | Context isolation | separate process | separate Session (child-session work does not enter the parent conversation) |
 | Cost rule | one new session per ticket | same, **plus**: keep the same model by continuing with `subagent_fork` (preserving the prefix KV cache); use `subagent` only when the model must change |
 | Unattended management | `queue.md` + background wait | same, stackable with dsh's `goal` |
@@ -35,34 +35,39 @@ The ticket/receipt templates, the `_tickets/` directory contract, and the accept
 
 ## Install
 
-**Installing the package installs the skill**: install `deepseek-foreman` from the dsh plugin page, and on the plugin's first load the packaged `skill/deepseek-foreman/` lands in `~/.dsh/skills/deepseek-foreman` — no manual linking:
+From package to first dispatched ticket in ≤ 10 minutes — just follow steps 0–6. Step-by-step detail and a troubleshooting table live in the full guide: [docs/install-flow.md](docs/install-flow.md).
 
-- it first tries a symlink (so repo edits stay live), and falls back to a recursive copy where symlinks are refused (e.g. Windows privileges);
-- an existing install (symlink or directory) is left untouched — nothing is ever overwritten;
-- if both steps fail it still throws nothing and never blocks dsh startup — the reason is recorded in `setup` (next section); set the plugin's `installSkill: false` to turn auto-install off.
+0. **dsh desktop**, with LLM routes for **≥2 different vendors** configured (an API key for each).
+1. **The `allowedModels` allowlist** (`@deepseek-ai/dsh-tool-subagent/model-selection-settings`): list every `provider/model` subtasks may use, **at least two from different vendors** (a hard requirement for cross-vendor review). After editing the allowlist, open a new session — it is a session snapshot; see [Prerequisites](#prerequisites).
+2. **Install the package**: add `deepseek-foreman` from the dsh plugin page; four things take effect immediately:
+   - it mounts `pick_route` (route adjudication: peak-hour lock, vision, output ceiling, cross-vendor review — see "Plugin" below);
+   - it mounts `subagent_readonly` (the read-only review instance: a child session dispatched through it has only the `read` / `grep` / `glob` read tools at runtime);
+   - it auto-installs the ticket skill into `~/.dsh/skills/deepseek-foreman`: a symlink first (so repo edits stay live), falling back to a recursive copy where symlinks are refused (e.g. Windows privileges); an existing install (symlink or directory) is left untouched — nothing is ever overwritten; if both steps fail it throws nothing and never blocks dsh startup — the reason is recorded in `setup` (step 5); set the plugin's `installSkill: false` to turn auto-install off;
+   - if no role table is found, it **lays down a template with Chinese comments** at `~/.dsh/foreman.roles.yml` (the packaged [roles.example.yml](roles.example.yml)) and the plugin enters an "unconfigured" guidance state — no errors, dsh startup is never blocked.
 
-dsh's `skill-filesystem` scans `~/.dsh/skills` (the `user-dsh` root) and `~/.agents/skills` (the `user-agents` root) by default. Installing here serves dsh only and does not pollute the four-tool shared `~/.agents/skills`.
+   dsh's `skill-filesystem` scans `~/.dsh/skills` (the `user-dsh` root) and `~/.agents/skills` (the `user-agents` root) by default. Installing here serves dsh only and does not pollute the four-tool shared `~/.agents/skills`.
+3. **Open a new session**, so the allowlist snapshot covers the newly installed instance.
+4. **Edit `~/.dsh/foreman.roles.yml`**: uncomment one of the "combination A" (single-vendor, full stack) / "combination B" (multi-vendor mix) groups in the template (**only one**), then replace `provider` / `model` with routes already present in your step-1 allowlist. **Saving takes effect immediately** — every `pick_route` call checks the file's mtime and re-reads on change, no restart; every field has its own comment; see the "Configure the role table" section below.
+5. **Self-check**: tell dsh "**call pick_route and show me setup**". A `pick_route` call without a role is the self-check mode; its `setup` block shows at a glance what is still missing:
 
-### Verify the install
+   | Field | Contents |
+   |---|---|
+   | `skill` | skill install outcome: `linked` / `copied` / `exists` / `disabled` / `failed: ...` |
+   | `rolesFile` | role-table path, status (`ok` / `unconfigured` / `error`), role count and an error summary |
+   | `allowlist` | the `allowedModels` pairs scanned from each profile's `cordis.patch.yml`, reconciled against the role table; `unmatchedRoles` lists roles not on the allowlist |
+   | `hints` | a plain-language hint for each problem found (e.g. "route deepseek/xxx of role daily-code is not in allowedModels; add it to the allowlist, then open a new session") |
 
-Open a new session and tell dsh: "**call pick_route and show me setup**". A `pick_route` call without a role is the self-check mode; its `setup` block shows at a glance what is still missing:
-
-| Field | Contents |
-|---|---|
-| `skill` | skill install outcome: `linked` / `copied` / `exists` / `disabled` / `failed: ...` |
-| `rolesFile` | role-table path, status (`ok` / `unconfigured` / `error`), role count and an error summary |
-| `allowlist` | the `allowedModels` pairs scanned from each profile's `cordis.patch.yml`, reconciled against the role table; `unmatchedRoles` lists roles not on the allowlist |
-| `hints` | a plain-language hint for each problem found (e.g. "route deepseek/xxx of role daily-code is not in allowedModels; add it to the allowlist, then open a new session") |
+6. **Work by ticket**: tell dsh "**work this ticket: do yyy in the xxx project**". The SOP then runs itself: write the ticket → `pick_route` picks the route → `subagent` dispatches → the Lead re-runs acceptance → `subagent_readonly` dispatches a cross-vendor read-only review → verify item by item → wrap up. Say "I'm leaving, keep going" to enter unattended mode.
 
 Note: hints 目前为中文输出 / hints are currently emitted in Chinese.
 
 ## Configure the role table (`~/.dsh/foreman.roles.yml`)
 
-The role table does not live in cordis config; it lives in an external YAML file, default `~/.dsh/foreman.roles.yml` (change the location with the plugin's `rolesFile` field). Three steps:
+The role table does not live in cordis config; it lives in an external YAML file, default `~/.dsh/foreman.roles.yml` (change the location with the plugin's `rolesFile` field).
 
-1. **Install the package**: add it from the dsh plugin page — the skill **auto-installs** into `~/.dsh/skills` on the plugin's first load (see "Install") — and wire the plugin up per [Prerequisites](#prerequisites). On first load, if the role-table file does not exist, the plugin **lays down a template with Chinese comments** (the packaged [roles.example.yml](roles.example.yml)) and enters an "unconfigured" guidance state — every `pick_route` returns `ok:false`, with a reason naming the file location and the next step ("fill in provider/model per the comments; saving takes effect immediately"). The plugin itself neither errors nor blocks dsh startup.
-2. **Edit `~/.dsh/foreman.roles.yml`**: uncomment one of the "combination A" / "combination B" groups in the template (**only one**; uncommenting both produces two top-level `roles:` keys), then replace `provider` / `model` with routes already present in your own allowlist.
-3. **Open a new session**: the `allowedModels` allowlist is a session snapshot; changing it requires a new session (next section). The role-table file is not subject to this rule.
+On package install, if that file does not exist, the plugin **lays down a template with Chinese comments** (the packaged [roles.example.yml](roles.example.yml)) and enters an "unconfigured" guidance state — every `pick_route` returns `ok:false`, with a reason naming the file location and the next step ("fill in provider/model per the comments; saving takes effect immediately"). The plugin itself neither errors nor blocks dsh startup.
+
+The only thing to edit is step 4 of the install flow: uncomment one of the "combination A" (single-vendor, full stack) / "combination B" (multi-vendor mix) groups in the template (**only one**; uncommenting both produces two top-level `roles:` keys), then replace `provider` / `model` with routes already present in your own allowlist. Changing the allowlist requires a new session (see [Prerequisites](#prerequisites)); the role-table file is not subject to this rule — saving takes effect immediately.
 
 ```bash
 $EDITOR ~/.dsh/foreman.roles.yml   # fill in provider/model; saving takes effect immediately
@@ -101,7 +106,7 @@ The bundle patch of this package also mounts **`subagent_readonly`** (the read-o
 Note: whether this tool **appears in a session depends on dsh's preset layer** — this package only guarantees that its own bundle-patch layer is written correctly. If `subagent_readonly` is not present in the session, fall back to the scheme in [SKILL.md](skill/deepseek-foreman/SKILL.md): the review prompt states "do not modify any files; run read-only commands only", and the Lead checks `git status` once before and once after the review.
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 94 self-checks
+npm install && npm run build && node test/smoke.mjs   # 107 self-checks
 ```
 
 The `Lead` role should match `agent-default-model` (the model the session actually runs as); otherwise the "brain" is misnamed.
