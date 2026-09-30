@@ -89,7 +89,11 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 
 ## 状态
 
-私密开发中。macOS / dsh 桌面版 0.2.0-rc.2 上首次配置流程待实测。
+已装进 dsh 桌面版 0.2.0-rc.2（Intel iMac）并 live 验证：冷启动正常，`pick_route` 可被模型调用，视觉约束会真的拦截并给 fallback。
+
+工单 SOP（`skill/`）**尚未在真实任务上跑过**，`_tickets/` 契约也还没在任何项目里建起来。
+
+接手请看 [docs/交接.md](docs/交接.md)。
 
 ## 许可
 
