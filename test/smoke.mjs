@@ -10,7 +10,8 @@ apply({ tools: { register: (t) => { tool = t } } }, {
     route('ui-design', 'moonshot', 'kimi-coding', 'k3', { vision: true }),
     route('daily-code', 'xiaomi', 'xiaomi-token-plan-cn', 'mimo-v2.6-flash', { vision: true }),
     route('daily-code-offpeak', 'deepseek', 'deepseek-official', 'deepseek-flash', {
-      peakFrom: '09:00', peakTo: '18:00', peakDays: [1, 2, 3, 4, 5], fallback: 'daily-code',
+      peakWindows: ['09:00-12:00', '14:00-18:00'], peakDays: [1, 2, 3, 4, 5],
+      holidays: ['2026-10-01', '2026-10-08'], fallback: 'daily-code',
     }),
     route('review', 'xiaomi', 'xiaomi-token-plan-cn', 'mimo-v2.6-pro', { vision: true }),
     route('review-alt', 'moonshot', 'kimi-coding', 'k3', { vision: true }),
@@ -21,7 +22,7 @@ apply({ tools: { register: (t) => { tool = t } } }, {
 
 function route(role, vendor, provider, model, extra = {}) {
   return { role, vendor, provider, model, reasoningEffort: '', vision: false, maxOutputTokens: 0,
-    peakFrom: '', peakTo: '', peakDays: [], fallback: '', note: '', ...extra }
+    peakWindows: [], peakDays: [], holidays: [], fallback: '', note: '', ...extra }
 }
 
 const at = (iso, fn) => {
@@ -49,16 +50,26 @@ check('杂活不做视觉活', (await call({ role: 'chores', needs_vision: true 
 check('文案做视觉活', (await call({ role: 'copywriting', needs_vision: true })).ok, true)
 check('未知角色被拒', (await call({ role: 'nope' })).ok, false)
 
-await at('2026-10-01T14:30:00', async () => {
+// 2026-09-30 是周三，非节假日 → 真实高峰两段生效
+await at('2026-09-30T11:00:00', async () => {
   const d = await call({ role: 'daily-code-offpeak' })
-  check('工作日下午高峰锁 deepseek', d.ok, false)
+  check('周三 11:00 落在 09:00-12:00 高峰 → 锁', d.ok, false)
   check('高峰被拒时自动给 fallback 角色', d.route?.role, 'daily-code')
 })
-await at('2026-10-01T21:30:00', async () => {
-  check('同一天晚上 21:30 放行 deepseek', (await call({ role: 'daily-code-offpeak' })).ok, true)
+await at('2026-09-30T13:00:00', async () => {
+  check('周三 13:00 午休属空闲 → 放行（单窗口实现会误锁）', (await call({ role: 'daily-code-offpeak' })).ok, true)
 })
-await at('2026-10-04T14:30:00', async () => {
-  check('周日下午不算高峰', (await call({ role: 'daily-code-offpeak' })).ok, true)
+await at('2026-09-30T15:00:00', async () => {
+  check('周三 15:00 落在 14:00-18:00 高峰 → 锁', (await call({ role: 'daily-code-offpeak' })).ok, false)
+})
+await at('2026-09-30T21:30:00', async () => {
+  check('周三 21:30 空闲 → 放行', (await call({ role: 'daily-code-offpeak' })).ok, true)
+})
+await at('2026-10-03T11:00:00', async () => {
+  check('国庆周六 11:00 全天空闲 → 放行', (await call({ role: 'daily-code-offpeak' })).ok, true)
+})
+await at('2026-10-08T11:00:00', async () => {
+  check('10-08 是周四但属法定假日 → 放行（peakDays 单独判会误锁）', (await call({ role: 'daily-code-offpeak' })).ok, true)
 })
 check('长产出拒小上限角色', (await call({ role: 'ui-design', needs_long_output: true })).ok, true) // k3 未声明上限 → 按设计跳过检查
 check('M2.7 声明 131072，长产出放行', (await call({ role: 'chores', needs_long_output: true })).ok, true)

@@ -25,12 +25,12 @@ export interface RoleRoute {
   vision: boolean
   /** Declared output-token ceiling; 0 means undeclared and skips the check. */
   maxOutputTokens: number
-  /** Peak window start `HH:MM` local time; empty disables the window. */
-  peakFrom: string
-  /** Peak window end `HH:MM` local time. */
-  peakTo: string
-  /** Weekdays the peak window applies to, ISO numbering (1 = Monday). Empty means every day. */
+  /** Expensive-hours windows as `HH:MM-HH:MM`; empty disables the peak check. */
+  peakWindows: string[]
+  /** Weekdays the windows apply to, ISO numbering (1 = Monday). Empty means every day. */
   peakDays: number[]
+  /** `YYYY-MM-DD` dates treated as off-peak all day even on a weekday. */
+  holidays: string[]
   /** Role to suggest when this one is refused. */
   fallback: string
   /** Model-facing note: what this role is for and what to watch for. */
@@ -52,9 +52,9 @@ export const Config: z<Config> = z.object({
     reasoningEffort: z.string().default(''),
     vision: z.boolean().default(false),
     maxOutputTokens: z.number().default(0),
-    peakFrom: z.string().default(''),
-    peakTo: z.string().default(''),
+    peakWindows: z.array(z.string()).default([]),
     peakDays: z.array(z.number()).default([]),
+    holidays: z.array(z.string()).default([]),
     fallback: z.string().default(''),
     note: z.string().default(''),
   })).default([]),
@@ -101,14 +101,26 @@ function parseClock(value: string): number | undefined {
   return Number(parts[1]) * 60 + Number(parts[2])
 }
 
-/** Whether `now` falls inside this route's peak window, in local time. */
+/** Whether `now` falls inside any of this route's peak windows, in local time. */
 function inPeakWindow(route: RoleRoute, now: Date): boolean {
-  const from = parseClock(route.peakFrom)
-  const to = parseClock(route.peakTo)
-  if (from === undefined || to === undefined) return false
+  if (route.peakWindows.length === 0) return false
+  if (route.holidays.includes(localDate(now))) return false
   if (route.peakDays.length > 0 && !route.peakDays.includes(now.getDay() === 0 ? 7 : now.getDay())) return false
   const minutes = now.getHours() * 60 + now.getMinutes()
-  return from <= to ? minutes >= from && minutes < to : minutes >= from || minutes < to
+  return route.peakWindows.some(window => {
+    const parts = window.split('-')
+    const from = parts.length === 2 ? parseClock(parts[0].trim()) : undefined
+    const to = parts.length === 2 ? parseClock(parts[1].trim()) : undefined
+    if (from === undefined || to === undefined) return false
+    return from <= to ? minutes >= from && minutes < to : minutes >= from || minutes < to
+  })
+}
+
+/** Local `YYYY-MM-DD` for a Date, so a holiday list is not timezone-sensitive. */
+function localDate(now: Date): string {
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
 }
 
 function toRoute(route: RoleRoute): Route {
@@ -182,7 +194,7 @@ function blockers(route: RoleRoute, args: { needs_vision?: boolean, needs_long_o
     found.push(`role "${route.role}" is not declared vision-capable`)
   }
   if (inPeakWindow(route, now)) {
-    found.push(`route ${route.provider}/${route.model} is locked during peak window ${route.peakFrom}-${route.peakTo}`)
+    found.push(`route ${route.provider}/${route.model} is locked during peak windows ${route.peakWindows.join(', ')}`)
   }
   if (args.needs_long_output === true && route.maxOutputTokens > 0 && route.maxOutputTokens < LONG_OUTPUT_MIN_TOKENS) {
     found.push(`role "${route.role}" caps output at ${route.maxOutputTokens} tokens, too small for a long single output`)
