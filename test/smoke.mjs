@@ -1,10 +1,15 @@
 // 自检：装好插件、拿 pick_route 的真实判定。失败即抛。
 // 跑法：npm run build && node test/smoke.mjs
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse as parseYaml } from 'yaml'
 import { apply } from '../lib/index.js'
+
+// T202：整份自检跑在临时 HOME 下——skill 自动安装与角色表模板只许落进这里，绝不碰真实 ~/.dsh。
+// （process.env 只在本进程内生效，进程退出即恢复。）
+process.env.HOME = mkdtempSync(join(tmpdir(), 'foreman-sandbox-'))
 
 let tool
 apply({ tools: { register: (t) => { tool = t } } }, {
@@ -302,6 +307,190 @@ check('toolFilter.allow 恰好是 read/grep/glob（顺序无关）',
 check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
   patchRows.length > 0 && patchRows.every((row) => row !== null && typeof row === 'object'
     && !('id' in row) && Array.isArray(row.insert)), true)
+
+// ── T202：skill 自动安装 + pick_route 无 role 时返回 setup（doctor 自检） ────────────
+const skillSource = fileURLToPath(new URL('../skill/deepseek-foreman', import.meta.url))
+const skillDir = (home) => join(home, '.dsh', 'skills', 'deepseek-foreman')
+const withHome = (home, fn) => {
+  const previous = process.env.HOME
+  process.env.HOME = home
+  try {
+    return fn()
+  } finally {
+    if (previous === undefined) delete process.env.HOME
+    else process.env.HOME = previous
+  }
+}
+const freshHome = (label) => mkdtempSync(join(tmpdir(), `foreman-${label}-`))
+
+// a. 没有 skills 目录 → 插件加载时自动建软链，SKILL.md 可读
+const skillHome = freshHome('skill')
+const skillTool = withHome(skillHome, () => mount({ roles: inlineOnly }))
+const skillSetup = (await skillTool.execute({})).setup
+check('T202 无 skills 目录 → 自动装为软链', skillSetup.skill, 'linked')
+check('T202 软链指向包内 skill/deepseek-foreman', readlinkSync(skillDir(skillHome)), skillSource)
+check('T202 软链后 SKILL.md 可读', readFileSync(join(skillDir(skillHome), 'SKILL.md'), 'utf8').includes('deepseek-foreman'), true)
+check('T202 setup 四个键齐全', Object.keys(skillSetup).join(','), 'rolesFile,skill,allowlist,hints')
+check('T202 直传 roles → rolesFile.status=ok 且注明未使用',
+  skillSetup.rolesFile.status === 'ok' && skillSetup.rolesFile.detail.includes('直传'), true)
+
+// b. 已存在（普通目录）→ 不覆盖：标记文件原样，也不会被换成软链
+const keepHome = freshHome('keepskill')
+const keptDir = skillDir(keepHome)
+mkdirSync(keptDir, { recursive: true })
+writeFileSync(join(keptDir, 'MARKER.md'), 'pre-existing')
+const keepTool = withHome(keepHome, () => mount({ roles: inlineOnly }))
+const keepSetup = (await keepTool.execute({})).setup
+check('T202 已有 skill 目录 → exists 且不动', keepSetup.skill, 'exists')
+check('T202 已有目录没被换成软链', lstatSync(keptDir).isSymbolicLink(), false)
+check('T202 已有目录里的文件原样', readFileSync(join(keptDir, 'MARKER.md'), 'utf8'), 'pre-existing')
+
+// c. installSkill: false → 一个文件都不建
+const offHome = freshHome('offskill')
+const offTool = withHome(offHome, () => mount({ roles: inlineOnly, installSkill: false }))
+check('T202 installSkill:false → skills 目录不创建', existsSync(join(offHome, '.dsh', 'skills')), false)
+check('T202 installSkill:false → setup.skill=disabled', (await offTool.execute({})).setup.skill, 'disabled')
+
+// d. 软链与拷贝都失败 → 不抛错，原因记进 setup.skill 和 hints
+const badHome = freshHome('badskill')
+mkdirSync(join(badHome, '.dsh'))
+writeFileSync(join(badHome, '.dsh', 'skills'), 'i am a file, not a directory')
+const badTool = withHome(badHome, () => mount({ roles: inlineOnly })) // 若这里抛错，测试会直接崩
+const badSetup = (await badTool.execute({})).setup
+check('T202 skills 路径被文件占住 → failed: 而非抛错', badSetup.skill.startsWith('failed:'), true)
+check('T202 安装失败原因进 hints', badSetup.hints.some((h) => h.includes('skill 自动安装失败')), true)
+
+// d2. T202b：悬空软链占位 → 不报假绿 exists，清理后重装，装完 SKILL.md 可读
+const dangleHome = freshHome('dangle')
+const dangleDir = skillDir(dangleHome)
+mkdirSync(dirname(dangleDir), { recursive: true })
+symlinkSync(join(dangleHome, 'gone-skill'), dangleDir) // 指向不存在的路径：statSync 跟不过去
+const dangleTool = withHome(dangleHome, () => mount({ roles: inlineOnly }))
+const dangleSetup = (await dangleTool.execute({})).setup
+check('T202b 悬空软链重装为 linked（不是假绿 exists）', dangleSetup.skill, 'linked')
+check('T202b 清理重装后 SKILL.md 可读',
+  readFileSync(join(dangleDir, 'SKILL.md'), 'utf8').includes('deepseek-foreman'), true)
+check('T202b 重装结果就是指向包内 skill 的真软链', readlinkSync(dangleDir), skillSource)
+
+// d3. T202b：普通文件占住安装目标 → failed: 目标路径被普通文件占用 + 对应 hints，文件原样不动
+const fileHome = freshHome('fileskill')
+const fileTarget = skillDir(fileHome)
+mkdirSync(dirname(fileTarget), { recursive: true })
+writeFileSync(fileTarget, 'plain file, not a skill dir')
+const fileTool = withHome(fileHome, () => mount({ roles: inlineOnly }))
+const fileSetup = (await fileTool.execute({})).setup
+check('T202b 普通文件占位 → failed: 目标路径被普通文件占用',
+  fileSetup.skill.startsWith('failed:') && fileSetup.skill.includes('目标路径被普通文件占用'), true)
+check('T202b 占位失败有对应 hints', fileSetup.hints.some((h) => h.includes('被普通文件占用')), true)
+check('T202b 占位文件原样保留（不被覆盖）', readFileSync(fileTarget, 'utf8'), 'plain file, not a skill dir')
+
+// e. doctor 对账：假 profile patch 含 allowedModels，角色表故意放一个不在白名单的路由
+const docHome = freshHome('doctor')
+mkdirSync(join(docHome, '.dsh', 'profiles', 'desktop'), { recursive: true })
+writeFileSync(join(docHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'), [
+  '- id: model-selection-settings',
+  '  name: "@deepseek-ai/dsh-tool-subagent/model-selection-settings"',
+  '  config:',
+  '    enabled: true',
+  '    allowedModels:',
+  '      - provider: provider-a',
+  '        model: model-a',
+  '',
+].join('\n'))
+mkdirSync(join(docHome, '.dsh', 'profiles', 'broken'), { recursive: true })
+writeFileSync(join(docHome, '.dsh', 'profiles', 'broken', 'cordis.patch.yml'), 'allowedModels: [oops\n')
+const docTool = withHome(docHome, () => mount({ roles: [
+  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('rogue', 'vendor-b', 'provider-x', 'model-y'),
+] }))
+// 白名单扫描发生在 execute 那一刻 → 临时 HOME 必须把调用也包住
+const docSetup = (await withHome(docHome, () => docTool.execute({}))).setup
+check('T202 白名单扫描到 provider-a/model-a',
+  docSetup.allowlist.routes.some((p) => p.provider === 'provider-a' && p.model === 'model-a'), true)
+check('T202 白名单对账 status=ok', docSetup.allowlist.status, 'ok')
+check('T202 白名单外的角色被标出', docSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
+check('T202 白名单内的 lead 不被误标', docSetup.allowlist.unmatchedRoles.some((m) => m.role === 'lead'), false)
+check('T202 读不到的 profile patch 标 unknown', docSetup.allowlist.profiles.filter((p) => p.status === 'unknown').length, 1)
+check('T202 hints 点名 rogue 并指路「加白名单后开新会话」',
+  docSetup.hints.some((h) => h.includes('角色 rogue') && h.includes('加进白名单后开新会话')), true)
+
+// f. 一个白名单都读不到 → allowlist=unknown，不再逐个角色报「不在白名单」
+const blindHome = freshHome('blinddoctor')
+const blindTool = withHome(blindHome, () => mount({ roles: inlineOnly }))
+const blindSetup = (await withHome(blindHome, () => blindTool.execute({}))).setup
+check('T202 读不到 profiles → allowlist.status=unknown', blindSetup.allowlist.status, 'unknown')
+check('T202 读不到白名单时不误标角色', blindSetup.allowlist.unmatchedRoles.length, 0)
+check('T202 hints 说明无法核对白名单', blindSetup.hints.some((h) => h.includes('无法核对角色路由')), true)
+
+// ── T202b：白名单只认 model-selection 条目 + 按 profile 粒度对账 + 未启用白名单 ─────────
+// a. 别的插件也叫 allowedModels 的段不算白名单，否则该拦的角色会被放行（对账假阴性）
+const scopedHome = freshHome('scoped')
+mkdirSync(join(scopedHome, '.dsh', 'profiles', 'desktop'), { recursive: true })
+writeFileSync(join(scopedHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'), [
+  '- id: model-selection-settings',
+  '  name: "@deepseek-ai/dsh-tool-subagent/model-selection-settings"',
+  '  config:',
+  '    enabled: true',
+  '    allowedModels:',
+  '      - provider: provider-a',
+  '        model: model-a',
+  '- id: other-tool',
+  '  name: "@deepseek-ai/dsh-tool-other"',
+  '  config:',
+  '    allowedModels:',
+  '      - provider: provider-x',
+  '        model: model-y',
+  '',
+].join('\n'))
+const scopedTool = withHome(scopedHome, () => mount({ roles: [
+  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('rogue', 'vendor-b', 'provider-x', 'model-y'),
+] }))
+const scopedSetup = (await withHome(scopedHome, () => scopedTool.execute({}))).setup
+check('T202b 只收集 name 含 model-selection 条目下的 allowedModels',
+  scopedSetup.allowlist.routes.some((p) => p.provider === 'provider-x' && p.model === 'model-y'), false)
+check('T202b 只在别的插件 allowedModels 里的角色仍被标为 unmatched',
+  scopedSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
+check('T202b roleMatches 注明 lead 匹配到 desktop',
+  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'lead')?.matchedIn), '["desktop"]')
+check('T202b roleMatches 注明 rogue 没匹配到任何 profile',
+  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'rogue')?.matchedIn), '[]')
+
+// b. 所有 profile 都读得到但没有 allowedModels 段 → not-configured，不再逐角色报警
+const bareHome = freshHome('bareallow')
+mkdirSync(join(bareHome, '.dsh', 'profiles', 'desktop'), { recursive: true })
+writeFileSync(join(bareHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'), [
+  '- id: other-tool',
+  '  name: "@deepseek-ai/dsh-tool-other"',
+  '  config:',
+  '    enabled: true',
+  '',
+].join('\n'))
+const bareTool = withHome(bareHome, () => mount({ roles: inlineOnly }))
+const bareSetup = (await withHome(bareHome, () => bareTool.execute({}))).setup
+check('T202b 没有 allowedModels 段 → allowlist.status=not-configured', bareSetup.allowlist.status, 'not-configured')
+check('T202b 未启用白名单时不逐角色报警', bareSetup.allowlist.unmatchedRoles.length, 0)
+check('T202b hints 改说「未启用白名单，当前不强制限制派单；建议启用」',
+  bareSetup.hints.some((h) => h.includes('未启用白名单，当前不强制限制派单；建议启用')), true)
+
+// g. rolesFile 三态（ok / unconfigured / error）+ 只有无 role 的调用带 setup
+const okFile = join(dir, 'doctor-ok.yml')
+save(okFile, tableA, 1_700_000_300)
+const okTool = mount({ roles: [], rolesFile: okFile })
+const okSetup = (await okTool.execute({})).setup
+check('T202 角色表可读 → rolesFile.status=ok、roles=2',
+  okSetup.rolesFile.status === 'ok' && okSetup.rolesFile.roles === 2, true)
+check('T202 带 role 的调用不返回 setup', 'setup' in (await okTool.execute({ role: 'lead' })), false)
+const newFile = join(dir, 'doctor-new', 'foreman.roles.yml')
+const newSetup = (await mount({ roles: [], rolesFile: newFile }).execute({})).setup
+check('T202 角色表还没铺出 → status=unconfigured', newSetup.rolesFile.status, 'unconfigured')
+check('T202 未配置态 hints 给编辑指引', newSetup.hints.some((h) => h.includes('角色表还没配置')), true)
+const errFile = join(dir, 'doctor-err.yml')
+save(errFile, tableBroken, 1_700_000_400)
+const errSetup = (await mount({ roles: [], rolesFile: errFile }).execute({})).setup
+check('T202 角色表坏文件 → status=error 且 detail 带解析摘要',
+  errSetup.rolesFile.status === 'error' && errSetup.rolesFile.detail.includes('YAML 解析失败'), true)
+check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h) => h.includes('角色表有问题')), true)
 
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)

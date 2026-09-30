@@ -35,20 +35,30 @@
 
 ## 安装
 
-装到 dsh 的用户技能根（**软链，不拷贝**，改仓库即生效）：
+**装包即自动安装**：在 dsh 插件页装上 `deepseek-foreman`，插件首次加载就把包内 `skill/deepseek-foreman/` 装进 `~/.dsh/skills/deepseek-foreman`，不再手动软链：
 
-```bash
-mkdir -p ~/.dsh/skills
-ln -s "$PWD/skill/deepseek-foreman" ~/.dsh/skills/deepseek-foreman
-```
+- 先建软链（改仓库即生效），软链被系统拒绝（如 Windows 权限）自动退化为递归拷贝；
+- 已装过（软链或目录）一律不动，不会覆盖；
+- 两步都失败也不抛错、不影响 dsh 启动，失败原因记进 `setup`（见下节）；插件配置 `installSkill: false` 可关闭自动安装。
 
 dsh 的 `skill-filesystem` 默认扫 `~/.dsh/skills`（`user-dsh` 根）和 `~/.agents/skills`（`user-agents` 根）。装在这里只给 dsh 用，不污染四工具共享的 `~/.agents/skills`。
+
+### 验证安装
+
+开一个新会话，对 dsh 说：「**调 pick_route 看看 setup**」。`pick_route` 不带 role 即自检模式，返回的 `setup` 一眼看到还缺什么：
+
+| 字段 | 内容 |
+|---|---|
+| `skill` | skill 安装结果：`linked` / `copied` / `exists` / `disabled` / `failed: ...` |
+| `rolesFile` | 角色表路径、状态（`ok` / `unconfigured` / `error`）、角色数与错误摘要 |
+| `allowlist` | 扫各 profile 的 `cordis.patch.yml` 拿到的 `allowedModels` 白名单，与角色表对账；`unmatchedRoles` 列出不在白名单的角色 |
+| `hints` | 有问题时的一句人话指引（如「角色 daily-code 的路由不在 allowedModels，把它加进白名单后开新会话」） |
 
 ## 配置角色表（`~/.dsh/foreman.roles.yml`）
 
 角色表不在 cordis config 里，而在一个外部 YAML 文件，默认 `~/.dsh/foreman.roles.yml`（可用插件的 `rolesFile` 字段换位置）。三步：
 
-1. **装包**：按上一节把 skill 软链进 `~/.dsh/skills`，并按[前置条件](#前置条件)把插件挂上。插件首次加载时若发现角色表文件不存在，会**自动铺一份带中文注释的模板**（内容就是包里的 [roles.example.yml](roles.example.yml)），并进入「未配置」引导态——`pick_route` 全部返回 `ok:false`，reason 写明文件位置和下一步（「按注释填好 provider/model，保存即生效」），插件本身不报错、不影响 dsh 启动。
+1. **装包**：在插件页装上本包，skill 随插件首次加载**自动装进** `~/.dsh/skills`（见「安装」），并按[前置条件](#前置条件)把插件挂上。插件首次加载时若发现角色表文件不存在，会**自动铺一份带中文注释的模板**（内容就是包里的 [roles.example.yml](roles.example.yml)），并进入「未配置」引导态——`pick_route` 全部返回 `ok:false`，reason 写明文件位置和下一步（「按注释填好 provider/model，保存即生效」），插件本身不报错、不影响 dsh 启动。
 2. **编辑 `~/.dsh/foreman.roles.yml`**：把模板里「组合 A」或「组合 B」其中一组的注释解开（**只解一组**，同时解开会出现两个顶层 `roles:` 键），再把 `provider` / `model` 换成你自己白名单里已有的路由。
 3. **开新会话**：`allowedModels` 白名单是会话快照，改白名单要开新会话（下一节）。角色表文件不受这条限制。
 
@@ -89,7 +99,7 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 注意：这个工具**能否出现在会话里取决于 dsh 的 preset 层**，本包只保证 bundle patch 这一层写对。若会话里没有 `subagent_readonly`，就按 [SKILL.md](skill/deepseek-foreman/SKILL.md) 的降级方案执行——审查提示词写明「不要改任何文件，只跑只读命令」，Lead 在审查前后各看一次 `git status` 核实。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 67 项自检
+npm install && npm run build && node test/smoke.mjs   # 94 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。

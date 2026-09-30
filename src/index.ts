@@ -1,8 +1,8 @@
 /** Route adjudication for ticket dispatch: role -> provider/model, with hard constraints. */
 
-import { constants, copyFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { constants, copyFileSync, cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -49,6 +49,8 @@ export interface Config {
   roles: RoleRoute[]
   /** External role file; a leading `~/` expands to the home directory. Empty means `<home>/.dsh/foreman.roles.yml`. */
   rolesFile: string
+  /** Install the packaged skill into `<home>/.dsh/skills` when the plugin loads. Default true. */
+  installSkill: boolean
 }
 
 /** Schema of one role entry, shared by the inline config and the external file. */
@@ -71,6 +73,7 @@ const ROLE_SCHEMA = z.object({
 export const Config: z<Config> = z.object({
   roles: z.array(ROLE_SCHEMA).default([]),
   rolesFile: z.string().default(''),
+  installSkill: z.boolean().default(true),
 })
 
 /** Schema of the external role file: the same role entries under a `roles:` key. */
@@ -78,6 +81,51 @@ const ROLES_FILE_SCHEMA = z.object({ roles: z.array(ROLE_SCHEMA).default([]) })
 
 /** Role-file template shipped in this package, copied out when the user has none yet. */
 const EXAMPLE_ROLES_FILE = fileURLToPath(new URL('../roles.example.yml', import.meta.url))
+
+/** Packaged skill directory shipped in this package, installed into the user skill root on load. */
+const SKILL_SOURCE = fileURLToPath(new URL('../skill/deepseek-foreman', import.meta.url))
+
+/** Install target under the user skill root: `<home>/.dsh/skills/deepseek-foreman`. */
+const SKILL_TARGET = () => join(homedir(), '.dsh', 'skills', 'deepseek-foreman')
+
+/** One whitelisted `allowedModels` provider/model pair. */
+interface RoutePair {
+  provider: string
+  model: string
+}
+
+/** Scan of one profile's `cordis.patch.yml`; `unknown` means the file could not be read or parsed. */
+interface ProfileScan {
+  file: string
+  status: 'ok' | 'unknown'
+  routes: RoutePair[]
+  detail?: string
+}
+
+/** Role-table report for the doctor: where it is, how it fared, how many roles it holds. */
+interface RolesFileReport {
+  path: string
+  status: 'ok' | 'unconfigured' | 'error'
+  roles: number
+  detail?: string
+}
+
+/** The `setup` block `pick_route` returns when called without a role. */
+interface SetupReport {
+  rolesFile: RolesFileReport
+  skill: string
+  allowlist: {
+    /** `not-configured`: every readable profile lacks an `allowedModels` block — no whitelist to enforce yet. */
+    status: 'ok' | 'unknown' | 'not-configured'
+    detail?: string
+    routes: RoutePair[]
+    profiles: ProfileScan[]
+    unmatchedRoles: { role: string, provider: string, model: string }[]
+    /** Per-role reconciliation: which `status=ok` profiles each role matched, e.g. `matchedIn: ['desktop']`. */
+    roleMatches: { role: string, matchedIn: string[] }[]
+  }
+  hints: string[]
+}
 
 /** One resolved role route as the model sees it. */
 export interface Route {
@@ -100,6 +148,83 @@ const ROUTE_SCHEMA = {
   },
 } as const
 
+const ROUTE_PAIR_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    provider: { type: 'string', required: true },
+    model: { type: 'string', required: true },
+  },
+} as const
+
+/** Setup self-check (doctor) block: role table, skill install, allowlist reconciliation, hints. */
+const SETUP_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    rolesFile: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: { type: 'string', required: true },
+        status: { type: 'string', enum: ['ok', 'unconfigured', 'error'], required: true },
+        roles: { type: 'integer', required: true },
+        detail: { type: 'string' },
+      },
+    },
+    skill: { type: 'string', required: true },
+    allowlist: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        status: { type: 'string', enum: ['ok', 'unknown', 'not-configured'], required: true },
+        detail: { type: 'string' },
+        routes: { type: 'array', required: true, items: ROUTE_PAIR_SCHEMA },
+        profiles: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              file: { type: 'string', required: true },
+              status: { type: 'string', enum: ['ok', 'unknown'], required: true },
+              routes: { type: 'array', required: true, items: ROUTE_PAIR_SCHEMA },
+              detail: { type: 'string' },
+            },
+          },
+        },
+        unmatchedRoles: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              role: { type: 'string', required: true },
+              provider: { type: 'string', required: true },
+              model: { type: 'string', required: true },
+            },
+          },
+        },
+        roleMatches: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              role: { type: 'string', required: true },
+              matchedIn: { type: 'array', required: true, items: { type: 'string' } },
+            },
+          },
+        },
+      },
+    },
+    hints: { type: 'array', required: true, items: { type: 'string' } },
+  },
+} as const
+
 const DECISION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -108,6 +233,7 @@ const DECISION_SCHEMA = {
     reason: { type: 'string', required: true },
     route: ROUTE_SCHEMA,
     alternatives: { type: 'array', required: true, items: ROUTE_SCHEMA },
+    setup: SETUP_SCHEMA,
   },
 } as const
 
@@ -183,15 +309,75 @@ export function apply(ctx: Context, config: Config) {
     ? join(homedir(), '.dsh', 'foreman.roles.yml')
     : configured.startsWith('~/') ? join(homedir(), configured.slice(2)) : configured
 
+  /** Whether the packaged skill is installed on load; config `installSkill`, default true. */
+  const installSkill = config.installSkill ?? true
+  /** Skill install result recorded at load time; a failure is reported to the doctor, never thrown. */
+  let skillInstall: string
+  try {
+    skillInstall = ensureSkill()
+  } catch (error) {
+    skillInstall = `failed: ${summarize(error)}`
+  }
+
   /** Active table: the inline config roles, or the last good read of `rolesFile`. */
   let roles: RoleRoute[] = inlineMode ? inlineRoles : []
   let byRole = new Map(roles.map(route => [route.role, route]))
   /** Set while the file is missing, empty, unreadable or invalid; it refuses every call. */
   let loadError: string | undefined
+  /** Doctor classification of `loadError`: `unconfigured` for a fresh file, `error` for a broken one. */
+  let loadKind: 'ok' | 'unconfigured' | 'error' = 'ok'
   /** mtime of the last file read already processed; NaN forces the next call to read. */
   let loadedMtimeMs = Number.NaN
 
+  /** Record one load outcome: `error` message for the caller, `kind` for the doctor report. */
+  function setLoad(kind: 'ok' | 'unconfigured' | 'error', error: string | undefined): void {
+    loadKind = kind
+    loadError = error
+  }
+
   if (inlineMode && byRole.size !== roles.length) throw new Error('foreman: duplicate role in config.roles')
+
+  /**
+   * Install the packaged skill into `<home>/.dsh/skills`: prefer a symlink (repo edits stay live),
+   * fall back to a recursive copy where symlinks are refused (Windows privileges etc.).
+   * Every failure is reported, not thrown — and a target that cannot serve as the install is never
+   * reported as `exists` (a dangling symlink used to read as a healthy install: doctor 假绿).
+   */
+  function ensureSkill(): string {
+    if (!installSkill) return 'disabled'
+    const target = SKILL_TARGET()
+    const health = skillHealth(target)
+    if (health === 'ok') return 'exists'
+    if (health === 'occupied') return `failed: 目标路径被普通文件占用（${target}），未做任何改动`
+    if (health === 'unreadable') return `failed: 软链指向的位置读不到 SKILL.md（${target}），未改动该软链`
+    let cleaned = false
+    if (health === 'dangling') {
+      // 悬空软链必须清掉重装：留着它 entryExists 恒真，doctor 会把一个装不上的 skill 报成 exists。
+      // 这是工单明写的唯一授权删除动作；清不掉就如实报错，绝不假绿。
+      try {
+        unlinkSync(target)
+        cleaned = true
+      } catch (error) {
+        return `failed: 悬空软链清理失败（${summarize(error)}），未重装`
+      }
+    }
+    try {
+      mkdirSync(dirname(target), { recursive: true })
+      symlinkSync(SKILL_SOURCE, target, 'dir')
+      return 'linked'
+    } catch (linkError) {
+      if (entryExists(target)) return 'exists' // someone else installed it between the check and the link
+      try {
+        // TOCTOU：cpSync 默认 force 覆盖，在这期间被建出来的目标会被静默冲掉；
+        // errorOnExist+force:false 把「不覆盖别人刚建的东西」交给内核判定，冲突即失败。
+        cpSync(SKILL_SOURCE, target, { recursive: true, force: false, errorOnExist: true })
+        return 'copied'
+      } catch (copyError) {
+        if (cleaned) return `failed: 悬空软链已清理，重装失败（软链：${summarize(linkError)}；拷贝：${summarize(copyError)}）`
+        return `failed: 软链安装失败（${summarize(linkError)}）；递归拷贝也失败（${summarize(copyError)}）`
+      }
+    }
+  }
 
   /** Copy the shipped template to `rolesFile`, creating its parent directory first. */
   function writeTemplate(): void {
@@ -205,9 +391,12 @@ export function apply(ctx: Context, config: Config) {
   function restoreTemplate(): void {
     try {
       writeTemplate()
-      loadError = undefined // the stale error is about the file that is gone now; let refresh() re-stat and reload
+      // OK: the stale error is about the file that is gone now; let refresh() re-stat and reload
+      setLoad('ok', undefined)
     } catch (error) {
-      loadError = `未配置：模板写入失败（${summarize(error)}）；目标：${rolesFile}。按注释填好 provider/model，保存即生效`
+      // The template never landed, so this is a real error dressed as "未配置" — keep the wording,
+      // but classify it as `error` for the doctor so it is not mistaken for a not-configured-yet state.
+      setLoad('error', `未配置：模板写入失败（${summarize(error)}）；目标：${rolesFile}。按注释填好 provider/model，保存即生效`)
     }
   }
 
@@ -226,21 +415,21 @@ export function apply(ctx: Context, config: Config) {
       loadedMtimeMs = statSync(rolesFile).mtimeMs
       text = readFileSync(rolesFile, 'utf8')
     } catch (error) {
-      loadError = `配置文件读取失败：${summarize(error)}；文件：${rolesFile}`
+      setLoad('error', `配置文件读取失败：${summarize(error)}；文件：${rolesFile}`)
       return
     }
     let data: unknown
     try {
       data = parseYaml(text)
     } catch (error) {
-      loadError = fileReason(`配置文件 YAML 解析失败：${summarize(error)}`)
+      setLoad('error', fileReason(`配置文件 YAML 解析失败：${summarize(error)}`))
       return
     }
     let table: RoleRoute[]
     try {
       table = validateTable(data ?? {})
     } catch (error) {
-      loadError = fileReason(`配置文件校验失败：${summarize(error)}`)
+      setLoad('error', fileReason(`配置文件校验失败：${summarize(error)}`))
       return
     }
     if (table.length === 0) {
@@ -248,17 +437,17 @@ export function apply(ctx: Context, config: Config) {
         // A legal but empty table is a half-saved edit far more often than a deliberate wipe: keep the last
         // usable table for `alternatives` and refuse everything through `loadError`. Deleting the file does
         // not wipe it either — the template gets laid back down and lands here as an empty table.
-        loadError = fileReason('文件里是空表')
+        setLoad('error', fileReason('文件里是空表'))
         return
       }
       roles = []
       byRole = new Map()
-      loadError = `未配置：${rolesFile} 里还没有启用中的角色。按注释填好 provider/model，保存即生效`
+      setLoad('unconfigured', `未配置：${rolesFile} 里还没有启用中的角色。按注释填好 provider/model，保存即生效`)
       return
     }
     roles = table
     byRole = new Map(table.map(route => [route.role, route]))
-    loadError = undefined
+    setLoad('ok', undefined)
   }
 
   /** Re-read `rolesFile` when its mtime moved; inline config mode never touches the disk. */
@@ -270,7 +459,7 @@ export function apply(ctx: Context, config: Config) {
       if (loadError !== undefined) return
       mtimeMs = mtimeOf(rolesFile)
       if (mtimeMs === undefined) {
-        loadError = `配置文件读取失败：${rolesFile} 无法访问`
+        setLoad('error', `配置文件读取失败：${rolesFile} 无法访问`)
         return
       }
     }
@@ -281,6 +470,114 @@ export function apply(ctx: Context, config: Config) {
   if (!inlineMode) {
     if (mtimeOf(rolesFile) === undefined) restoreTemplate()
     if (loadError === undefined) loadFile()
+  }
+
+  /**
+   * Scan `<home>/.dsh/profiles/<name>/cordis.patch.yml` for `allowedModels` pairs. A file that cannot be
+   * read or parsed is reported as `unknown` — the doctor's job is to surface the gap, not to guess.
+   * Readable files with no `allowedModels` block anywhere are `not-configured` (nothing to enforce yet),
+   * which is a different state from "configured but not matching": the former must not alarm per role.
+   */
+  function scanAllowlist(): { profiles: ProfileScan[], routes: RoutePair[], status: 'ok' | 'unknown' | 'not-configured', detail?: string } {
+    const dir = join(homedir(), '.dsh', 'profiles')
+    let names: string[]
+    try {
+      names = readdirSync(dir)
+    } catch (error) {
+      return { profiles: [], routes: [], status: 'unknown', detail: `${dir} 读不到（${summarize(error)}）` }
+    }
+    const profiles: ProfileScan[] = []
+    const routes: RoutePair[] = []
+    const seen = new Set<string>()
+    for (const name of names) {
+      const file = join(dir, name, 'cordis.patch.yml')
+      if (!entryExists(file)) continue
+      try {
+        const found = collectAllowedModels(parseYaml(readFileSync(file, 'utf8')))
+        for (const pair of found) {
+          const key = JSON.stringify([pair.provider, pair.model]) // collision-free dedup
+          if (seen.has(key)) continue
+          seen.add(key)
+          routes.push(pair)
+        }
+        profiles.push({ file, status: 'ok', routes: found })
+      } catch (error) {
+        profiles.push({ file, status: 'unknown', routes: [], detail: summarize(error) })
+      }
+    }
+    const readable = profiles.filter((profile) => profile.status === 'ok')
+    if (readable.some((profile) => profile.routes.length > 0)) return { profiles, routes, status: 'ok' }
+    if (readable.length === profiles.length) {
+      // 全部读得到，却一个 allowedModels 段都没有 → 没启用白名单，不是「对不上」
+      return profiles.length === 0
+        ? { profiles, routes, status: 'unknown', detail: `${dir} 下没有 cordis.patch.yml` }
+        : { profiles, routes, status: 'not-configured', detail: `${dir} 下的 profile 都没有 allowedModels 段` }
+    }
+    return {
+      profiles,
+      routes,
+      status: 'unknown',
+      detail: readable.length === 0
+        ? `${dir} 下的 cordis.patch.yml 都读不到`
+        : `${dir} 下 ${profiles.length - readable.length} 个 cordis.patch.yml 读不到，其余没有 allowedModels 段`,
+    }
+  }
+
+  /** The `setup` block for a no-role call: role table, skill install, allowlist reconciliation, hints. */
+  function buildSetup(): SetupReport {
+    const allowlist = scanAllowlist()
+    // 对账按 profile 粒度：一个角色只要在任一 status=ok 的 profile 里对上，就不算失配；
+    // roleMatches 记下每个角色匹配到了哪些 profile（如 matchedIn: ['desktop']），供逐条核对。
+    const okProfiles = allowlist.profiles.filter((profile) => profile.status === 'ok')
+    const matchedIn = (route: RoleRoute): string[] => okProfiles
+      .filter((profile) => profile.routes.some((pair) => pair.provider === route.provider && pair.model === route.model))
+      .map((profile) => basename(dirname(profile.file)))
+    const roleMatches = allowlist.status === 'ok'
+      ? roles.map((route) => ({ role: route.role, matchedIn: matchedIn(route) }))
+      : []
+    // 只标「在所有 status=ok 的 profile 里都不匹配」的角色。白名单没读到（unknown）或没启用
+    // （not-configured）时一个都不标：逐角色报警会把真正的问题埋掉。
+    const unmatchedRoles = allowlist.status === 'ok'
+      ? roles
+        .filter((route) => matchedIn(route).length === 0)
+        .map(route => ({ role: route.role, provider: route.provider, model: route.model }))
+      : []
+    const rolesFileReport: RolesFileReport = inlineMode
+      ? { path: rolesFile, status: 'ok', roles: roles.length, detail: 'config.roles 直传，rolesFile 未使用' }
+      : { path: rolesFile, status: loadKind, roles: roles.length, ...(loadError === undefined ? {} : { detail: loadError }) }
+    const hints: string[] = []
+    if (!inlineMode && loadKind === 'unconfigured') {
+      hints.push(`角色表还没配置：编辑 ${rolesFile}，按注释填好 provider/model，保存即生效`)
+    } else if (!inlineMode && loadKind === 'error') {
+      hints.push(`角色表有问题：${loadError}`)
+    }
+    if (skillInstall.startsWith('failed:')) {
+      const detail = skillInstall.slice('failed:'.length).trim()
+      hints.push(detail.startsWith('目标路径被普通文件占用')
+        ? `skill 安装目标被普通文件占用（${SKILL_TARGET()}），先移走或删除该文件，重启后插件会自动重装`
+        : `skill 自动安装失败（${detail}），可手动把包内 skill/deepseek-foreman 链进 ~/.dsh/skills/deepseek-foreman`)
+    }
+    for (const missing of unmatchedRoles) {
+      hints.push(`角色 ${missing.role} 的路由 ${missing.provider}/${missing.model} 不在 allowedModels，把它加进白名单后开新会话`)
+    }
+    if (allowlist.status === 'not-configured') {
+      hints.push('未启用白名单，当前不强制限制派单；建议启用')
+    } else if (allowlist.status === 'unknown') {
+      hints.push(`没读到 allowedModels 白名单（${allowlist.detail ?? ''}），无法核对角色路由`)
+    }
+    return {
+      rolesFile: rolesFileReport,
+      skill: skillInstall,
+      allowlist: {
+        status: allowlist.status,
+        ...(allowlist.detail === undefined ? {} : { detail: allowlist.detail }),
+        routes: allowlist.routes,
+        profiles: allowlist.profiles,
+        unmatchedRoles,
+        roleMatches,
+      },
+      hints,
+    }
   }
 
   ctx.tools.register(defineTool({
@@ -302,9 +599,14 @@ export function apply(ctx: Context, config: Config) {
       refresh()
       const now = new Date()
       const all = () => roles.map(toRoute)
-      if (loadError !== undefined) return { ok: false, reason: loadError, alternatives: all() }
+      // Omitting the role is the doctor call: the answer carries `setup` even when the table
+      // itself is broken — that is exactly the call where the user asks "what is still missing?".
+      if (loadError !== undefined) {
+        const wantsSetup = args.role === undefined || args.role === ''
+        return { ok: false, reason: loadError, alternatives: all(), ...(wantsSetup ? { setup: buildSetup() } : {}) }
+      }
       if (args.role === undefined || args.role === '') {
-        return { ok: true, reason: `${roles.length} roles available`, alternatives: all() }
+        return { ok: true, reason: `${roles.length} roles available`, alternatives: all(), setup: buildSetup() }
       }
       const route = byRole.get(args.role)
       if (route === undefined) {
@@ -342,6 +644,97 @@ function mtimeOf(file: string): number | undefined {
   } catch {
     return undefined
   }
+}
+
+/** Whether a path exists as an entry — `statSync` misses even a dangling symlink, `lstatSync` does not. */
+function entryExists(file: string): boolean {
+  try {
+    lstatSync(file)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Health of the skill install target, checked before `ensureSkill` may answer `exists`:
+ * - `ok`: a directory (pre-existing install, left untouched) or a symlink through which `SKILL.md` reads;
+ * - `dangling`: a symlink `statSync` cannot follow — the install is gone, but `lstatSync` sees an entry;
+ * - `unreadable`: a resolvable symlink whose `<target>/SKILL.md` does not read (only reported, not removed);
+ * - `occupied`: a plain file (or other non-directory) sitting on the target path;
+ * - `absent`: nothing there yet, safe to install.
+ * Without this check a dangling symlink reads as a healthy `exists` while the skill cannot load at all.
+ */
+function skillHealth(target: string): 'ok' | 'dangling' | 'unreadable' | 'occupied' | 'absent' {
+  let isLink = false
+  let isDir = false
+  try {
+    const stats = lstatSync(target)
+    isLink = stats.isSymbolicLink()
+    isDir = stats.isDirectory()
+  } catch {
+    return 'absent'
+  }
+  if (isLink) {
+    try {
+      statSync(target) // follows the link; throws when it dangles
+    } catch {
+      return 'dangling'
+    }
+    try {
+      readFileSync(join(target, 'SKILL.md'), 'utf8')
+      return 'ok'
+    } catch {
+      return 'unreadable'
+    }
+  }
+  return isDir ? 'ok' : 'occupied'
+}
+
+/**
+ * `{provider, model}` pairs under any `allowedModels` key below a node — used only for subtrees that
+ * already belong to a `model-selection` entry (see `collectAllowedModels`).
+ */
+function collectAllowedUnder(node: unknown, out: RoutePair[] = []): RoutePair[] {
+  if (Array.isArray(node)) {
+    for (const item of node) collectAllowedUnder(item, out)
+    return out
+  }
+  if (node === null || typeof node !== 'object') return out
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key !== 'allowedModels') {
+      collectAllowedUnder(value, out)
+      continue
+    }
+    if (!Array.isArray(value)) continue
+    for (const entry of value) {
+      if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) continue
+      const { provider, model } = entry as Record<string, unknown>
+      if (typeof provider === 'string' && typeof model === 'string') out.push({ provider, model })
+    }
+  }
+  return out
+}
+
+/**
+ * `{provider, model}` pairs of a parsed patch file, collected ONLY from entries whose `name` carries
+ * `model-selection` (e.g. `@deepseek-ai/dsh-tool-subagent/model-selection-settings`). Other plugins may
+ * declare their own `allowedModels` key; counting those fakes a whitelisted route and lets the doctor
+ * stay green while the dispatch is really refused.
+ */
+function collectAllowedModels(node: unknown, out: RoutePair[] = []): RoutePair[] {
+  if (Array.isArray(node)) {
+    for (const item of node) collectAllowedModels(item, out)
+    return out
+  }
+  if (node === null || typeof node !== 'object') return out
+  const record = node as Record<string, unknown>
+  if (typeof record.name === 'string' && record.name.includes('model-selection')) {
+    collectAllowedUnder(record, out)
+    return out
+  }
+  for (const value of Object.values(record)) collectAllowedModels(value, out)
+  return out
 }
 
 function blockers(route: RoleRoute, args: { needs_vision?: boolean, needs_long_output?: boolean }, now: Date): string[] {
