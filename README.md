@@ -8,6 +8,8 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）。
 
+> **本项目的 0.2.0 就是用这套系统自己迭代完成的**——19 张工单 overnight，详见 [docs/dogfooding.md](docs/dogfooding.md)。
+
 ## 来源
 
 设计与工单/回执契约移植自 [yanauto/opus-manager](https://github.com/yanauto/opus-manager)（MIT，Copyright (c) 2026 yanauto）。上游是一个 **Claude Code skill**；本项目是它的 **dsh 移植版**。上游用 8 周、13 个仓库、360 张工单验证了这套流程，本项目沿用它的目录契约、验收标准和"回执是说法不是证据"原则。
@@ -127,6 +129,24 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 写成裸条目 `- id: ... / name: ...` 会被解释为**按 id 覆盖已存在的行**；组合里没有这一行时**静默不生效**——不报错、不告警，插件页显示「这个插件包不包含任何组件」，模型侧 `NO_TOOL`。官方规范见 [Package and install a plugin](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/user/develop/basic/publish.md)。
 
 另外：**手改 bundle 的 patch 文件不会通知运行中的 Host**（管理器之外的改动"announces nothing"）。改完要在插件页把开关关再开，或重启 app，才会重新应用这一层。
+
+## 实测数据
+
+一晚（2026-09-30 23:00 – 2026-10-01 12:00）跑完整轮冲刺的记录，数字来自当轮工单与回执，实证见 [docs/dogfooding.md](docs/dogfooding.md)。
+
+| 项 | 内容 |
+|---|---|
+| 环境 | dsh 桌面版 0.2.0-rc.2，macOS（Intel iMac），项目在 ExFAT 卷上 |
+| Lead | Kimi K3（拆活、派单、亲自重跑验收、逐条核实） |
+| 施工 | DeepSeek-V4.1-Flash（T001–T108，国庆半价窗口）、MiMo-V2.6-Flash（T201 起，主力） |
+| 异族审查 | Kimi K3；收尾新增 MiMo-V2.6-Pro 审 K3 产物 |
+
+- 19 张工单全部走完「派单 → Lead 重跑验收 → 异族审查 → 逐条核实 → 修复」闭环。
+- 自检从 20 项长到 110 项全绿；npm 发布 0.2.0 + GitHub 公开 + CI 首跑即绿。
+- 异族审查累计 20+ 条发现：约 19 条成立全部修复、1 条不成立被 Lead 驳回；含 1 条高危（私有路由名差点开源出去）。
+- 2 起「离线 109 项全绿、live 才炸」的事故被流程抓住并修复。
+
+**token 开销**（来源：dsh 子代理面板截图；口径＝该次施工会话累计 token）：施工类工单 33 万–59 万 token/单，验证类调用 0.6 万–1.6 万 token/次。施工 token 全部发生在便宜模型上，Lead 上下文只放工单/回执/审查意见、不读代码——这就是省钱机制。未做严格 A/B 对照实验，不给百分比承诺；读者可在 dsh 子代理面板自行核对每条开销。
 
 ## 状态
 

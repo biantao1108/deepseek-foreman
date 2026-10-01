@@ -8,6 +8,8 @@ Write work as tickets and dispatch them to **cheaper models**; the Lead only bre
 
 Built for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`).
 
+> **Version 0.2.0 of this project was itself iterated to completion using this very system** — 19 tickets overnight; see [docs/dogfooding.md](docs/dogfooding.md).
+
 ## Origin
 
 The design and the ticket/receipt contract are ported from [yanauto/opus-manager](https://github.com/yanauto/opus-manager) (MIT, Copyright (c) 2026 yanauto). Upstream is a **Claude Code skill**; this project is its **dsh port**. Upstream validated the flow over 8 weeks, 13 repositories and 360 tickets; this project keeps its directory contract, its acceptance criteria, and the principle that "a receipt is a claim, not evidence".
@@ -129,6 +131,24 @@ In a bundle's `cordis.patch.yml`, **a new plugin row must be wrapped under `inse
 A bare entry `- id: ... / name: ...` is interpreted as **overriding an existing row by id**; when the composition has no such row it **silently does nothing** — no error, no warning, the plugin page says "this plugin package contains no components", and the model side returns `NO_TOOL`. The official spec is [Package and install a plugin](https://github.com/deepseek-ai/deepseek-harness/blob/main/docs/user/develop/basic/publish.md).
 
 Also: **hand-editing a bundle's patch file does not notify the running Host** (changes made outside the manager "announce nothing"). After editing, toggle the switch off and on again in the plugin page, or restart the app, for that layer to be reapplied.
+
+## Field data
+
+The full sprint ran in one night (2026-09-30 23:00 – 2026-10-01 12:00); the numbers below come from that run's tickets and receipts, with the field report in [docs/dogfooding.md](docs/dogfooding.md).
+
+| Item | Value |
+|---|---|
+| Environment | dsh desktop 0.2.0-rc.2, macOS (Intel iMac), project on an ExFAT volume |
+| Lead | Kimi K3 (break down the work, dispatch, personally re-run acceptance, verify item by item) |
+| Builders | DeepSeek-V4.1-Flash (T001–T108, National Day half-price window), MiMo-V2.6-Flash (from T201, mainstay) |
+| Cross-vendor review | Kimi K3; at wrap-up MiMo-V2.6-Pro was added to review K3's output |
+
+- All 19 tickets completed the full loop: dispatch → Lead re-runs acceptance → cross-vendor review → item-by-item verification → fix.
+- Self-checks grew from 20 to 110, all green; npm 0.2.0 published + GitHub made public + CI green on its first run.
+- 20+ cross-vendor review findings in total: about 19 confirmed and all fixed, 1 rejected by the Lead after verification; including one high-severity finding (private route names nearly shipped open source).
+- 2 "109 green offline, only blows up live" incidents were caught by the process and fixed.
+
+**Token spend** (source: screenshot of the dsh subagent panel; measurement base = cumulative tokens of that build session): build tickets ran 330K–590K tokens each, verification calls 6K–16K tokens each. All build tokens were spent on cheap models — the Lead's context only holds tickets, receipts and review comments, never source code; that is the cost-saving mechanism. No strict A/B experiment was run, so no percentage claims are made; readers can check every line item in the dsh subagent panel themselves.
 
 ## Status
 

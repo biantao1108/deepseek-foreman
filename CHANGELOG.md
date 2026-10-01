@@ -3,6 +3,12 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-10-01
+
+### 文档
+- README 双语：致谢上游 opus-manager、「实测数据」节（模型分工/环境/token 开销）、「本项目 0.2.0 由本系统自己迭代完成」声明
+- 派单提示模板首行加本单摘要（dsh 子代理列表预览可区分任务）；ponytail 边界（实现从简、证据段不压缩）
+
 ## [0.2.0] - 2026-10-01
 
 首个公开版本：把私有的 `dsh-ticket-manager` 变成可安装、可发布的 `deepseek-foreman`。
