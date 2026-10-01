@@ -28,7 +28,7 @@ dsh's `subagent` tool accepts `provider` / `model` / `reasoning_effort` **at cal
 | Worker detached from session | `nohup` / `Start-Process` | a continuable child session with `run_in_background: true` |
 | Read-only review | the review command opens only `read,grep,find,ls` | `subagent_readonly` first: physical read-only (only `read`/`grep`/`glob` at runtime); when that tool is absent from the session, fall back to a review prompt stating "do not modify files; run read-only commands only" + the Lead checks `git status` before and after |
 | Context isolation | separate process | separate Session (child-session work does not enter the parent conversation) |
-| Cost rule | one new session per ticket | same, **plus**: keep the same model by continuing with `subagent_fork` (preserving the prefix KV cache); use `subagent` only when the model must change |
+| Cost rule | one new session per ticket | same, **plus**: keep the same model by continuing with `subagent_fork` (preserving the prefix KV cache); use `subagent` only when the model must change; children inherit the deployment persona, so worker discipline is not restated per dispatch |
 | Unattended management | `queue.md` + background wait | same, stackable with dsh's `goal` |
 
 The ticket/receipt templates, the `_tickets/` directory contract, and the acceptance and verification flow **stay the same** — that part is host-independent, and it is upstream's most valuable piece.

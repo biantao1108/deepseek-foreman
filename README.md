@@ -28,7 +28,7 @@
 | 工人脱离会话 | `nohup` / `Start-Process` | `run_in_background: true` 的 continuable 子会话 |
 | 只读审查 | 审查命令只开 `read,grep,find,ls` | 首选 `subagent_readonly` 物理只读（运行时只有 `read`/`grep`/`glob`）；会话里没有该工具时降级为审查提示词写明「不改文件，只跑只读命令」+ Lead 审查前后各看一次 `git status` |
 | 上下文隔离 | 靠独立进程 | 靠独立 Session（子会话工作不进父对话） |
-| 省钱规则 | 一张单一个新会话 | 同上，**外加**：同模型继续干用 `subagent_fork`（保住前缀 KV cache），只有必须换模型才用 `subagent` |
+| 省钱规则 | 一张单一个新会话 | 同上，**外加**：同模型继续干用 `subagent_fork`（保住前缀 KV cache），只有必须换模型才用 `subagent`；子会话继承部署 persona，工人纪律不用按次重述 |
 | 无人托管 | `queue.md` + 后台等待 | 同上，可叠 dsh 的 `goal` |
 
 工单/回执模板、`_tickets/` 目录契约、验收与核实流程**保持一致**——这部分和宿主无关，是上游最有价值的东西。
