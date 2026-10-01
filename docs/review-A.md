@@ -1,5 +1,5 @@
 # deepseek-foreman 第三方盲审报告 A（架构与 token 经济学）
-评审：kimi-coding/k3 @ 2026-10-01
+评审：Kimi K3 @ 2026-10-01
 （盲审原文存档；来源为独立评审子代理，Lead 未修改内容）
 
 ## 总评

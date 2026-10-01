@@ -140,6 +140,10 @@ Also: **hand-editing a bundle's patch file does not notify the running Host** (c
 
 ## Field data
 
+![Metrics dashboard](docs/metrics-2026-10-01.png)
+
+> Per-item numbers, model-role logic and cost caveats: **[Quantified metrics](docs/metrics-2026-10-01.md)** (with data sources and how to reproduce).
+
 The full sprint ran in one night (2026-09-30 23:00 – 2026-10-01 12:00); the numbers below come from that run's tickets and receipts, with the field report in [docs/dogfooding.md](docs/dogfooding.md).
 
 | Item | Value |

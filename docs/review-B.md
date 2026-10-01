@@ -1,5 +1,5 @@
 # deepseek-foreman 第三方盲审报告 B（产品与成本落地）
-评审：xiaomi-token-plan-cn/mimo-v2.6-pro @ 2026-10-01
+评审：MiMo-V2.6-Pro @ 2026-10-01
 （盲审原文存档；来源为独立评审子代理，Lead 未修改内容）
 
 ## 总评
