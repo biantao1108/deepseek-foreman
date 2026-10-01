@@ -101,12 +101,12 @@ Dispatch itself still goes through dsh's native `subagent` (which already suppor
 
 The role table is configured in the "Configure the role table" section above. The old wiring still works too: write `roles: [...]` directly in cordis config; when non-empty it wins and `rolesFile` is ignored (see [example.cordis.yml](example.cordis.yml); the shipped bundle's [cordis.patch.yml](cordis.patch.yml) no longer carries a real role table).
 
-The bundle patch of this package also mounts **`subagent_readonly`** (the read-only review instance): a child session dispatched through it has, **at runtime**, only the three read tools `read` / `grep` / `glob` — write tools disappear from the prompt and their execution is refused, so read-only review goes from "prompt-level self-discipline" to runtime enforcement (the native `subagent` itself still has no read-only filter parameter; see the table above).
+The bundle patch of this package also mounts **`subagent_readonly`** (the read-only review instance): a child session dispatched through it has, **at runtime**, only the three read tools `read` / `grep` / `glob` — write tools disappear from the prompt and their execution is refused, so read-only review goes from "prompt-level self-discipline" to runtime enforcement (the native `subagent` itself still has no read-only filter parameter; see the table above). Read-only review can switch vendors: this instance has `modelSelectionSettings` enabled, so passing `provider` / `model` per call dispatches a cross-vendor review, and the delegation tools (`subagent` / `subagent_fork` / `subagent_readonly` / `workflow`) are blocked by `toolFilter.deny` so a read-only child session cannot dispatch an unrestricted subagent.
 
 Note: whether this tool **appears in a session depends on dsh's preset layer** — this package only guarantees that its own bundle-patch layer is written correctly. If `subagent_readonly` is not present in the session, fall back to the scheme in [SKILL.md](skill/deepseek-foreman/SKILL.md): the review prompt states "do not modify any files; run read-only commands only", and the Lead checks `git status` once before and once after the review.
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 107 self-checks
+npm install && npm run build && node test/smoke.mjs   # 109 self-checks
 ```
 
 The `Lead` role should match `agent-default-model` (the model the session actually runs as); otherwise the "brain" is misnamed.

@@ -304,6 +304,13 @@ check('toolFilter.allow 恰好是 read/grep/glob（顺序无关）',
   (Array.isArray(readonlyEntry?.config?.toolFilter?.allow)
     && readonlyEntry.config.toolFilter.allow.length === 3
     && ['read', 'grep', 'glob'].every((t) => readonlyEntry.config.toolFilter.allow.includes(t))), true)
+check('toolFilter.deny 恰好是 subagent/subagent_fork/subagent_readonly/workflow（堵委派绕过）',
+  (Array.isArray(readonlyEntry?.config?.toolFilter?.deny)
+    && readonlyEntry.config.toolFilter.deny.length === 4
+    && ['subagent', 'subagent_fork', 'subagent_readonly', 'workflow']
+      .every((t) => readonlyEntry.config.toolFilter.deny.includes(t))), true)
+check('config.modelSelectionSettings === true（按次换 provider/model）',
+  readonlyEntry?.config?.modelSelectionSettings, true)
 check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
   patchRows.length > 0 && patchRows.every((row) => row !== null && typeof row === 'object'
     && !('id' in row) && Array.isArray(row.insert)), true)

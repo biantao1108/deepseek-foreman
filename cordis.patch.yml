@@ -15,6 +15,8 @@
       # 仍然兼容老接法：也可以直接在这里写 roles: [...]，非空时优先，rolesFile 被忽略。
   # 审查派单用 subagent_readonly：经这个实例派出的子会话只有读工具（read/grep/glob），
   # 写工具从提示里消失、执行也会被拒——只读审查从「提示词自觉」变成运行时强制。
+  # toolFilter.deny 是为了堵委派绕过：实测委派工具（subagent 等）不会被 allow 名单滤掉，
+  # 不写 deny 的话只读子会话仍能派出不受限子代理、绕开只读；deny 把委派与 workflow 工具全部挡掉。
   # 能否出现在会话里取决于 dsh preset 层；不存在时按 SKILL.md 的降级方案（提示词 + git 核实）执行。
   - id: tool-subagent-readonly
     name: '@deepseek-ai/dsh-tool-subagent'
@@ -22,8 +24,16 @@
       provider: spawn
       toolName: subagent_readonly
       backgroundMode: continuable
+      # 打开后本实例暴露 provider/model/reasoning_effort 入参（受白名单约束），
+      # 只读审查才能按次换厂商做异族审查——与 standard preset 的 subagent 实例一致。
+      modelSelectionSettings: true
       toolFilter:
         allow:
         - read
         - grep
         - glob
+        deny:
+        - subagent
+        - subagent_fork
+        - subagent_readonly
+        - workflow
