@@ -1,0 +1,26 @@
+name: Beta tester sign-up
+description: Join the deepseek-foreman beta
+labels: ["beta"]
+body:
+  - type: input
+    id: dsh-version
+    attributes:
+      label: dsh version
+      placeholder: e.g. 0.2.0-rc.2
+    validations: { required: true }
+  - type: input
+    id: vendors
+    attributes:
+      label: Model vendors you have
+      placeholder: e.g. DeepSeek + Kimi + MiMo
+    validations: { required: true }
+  - type: dropdown
+    id: experience
+    attributes:
+      label: Your experience level
+      options: ["New to agent tooling", "Comfortable with configs", "Power user"]
+    validations: { required: true }
+  - type: textarea
+    id: goal
+    attributes:
+      label: What do you want to use it for?
