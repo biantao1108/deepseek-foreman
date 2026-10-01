@@ -8,7 +8,7 @@
 
 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（`dsh`）。
 
-**小白三步**（没碰过 cordis / YAML / CLI 也能上手）：
+**小白三步**（没碰过 cordis / YAML / CLI 也能上手，全程有 setup 向导兜底）：
 
 1. 装 dsh，配好 ≥2 家厂商的模型；
 2. 插件页点装 `deepseek-foreman`；
@@ -183,6 +183,14 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 | `critical`（数据/发布/安全） | 双审查 + 物理只读审查 | high；失败 2 次升档重派 |
 
 成本台账随每张回执记录（施工 token/effort/wall-clock），`_receipts/progress.md` 周汇总；无人托管有预算闸（到限即停）。分工逻辑与实测数据见 [可量化测试数据](docs/metrics-2026-10-01.md)。
+
+## 首次配置向导（R15）
+
+```bash
+npx deepseek-foreman-setup   # 核对白名单、指路角色表、给试跑话术
+```
+
+故障自助见 [故障速查](docs/install-flow.md#故障速查10-条与-doctor-hints-对应)（10 条，与 doctor hints 对应）。
 
 ## 状态
 

@@ -1,6 +1,7 @@
 /** Route adjudication for ticket dispatch: role -> provider/model, with hard constraints. */
 
 import { constants, copyFileSync, cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -127,6 +128,17 @@ interface SetupReport {
   hints: string[]
 }
 
+/** R5 mechanical acceptance verdict as the model sees it. */
+export interface AcceptCheck {
+  receipt: string
+  ticket?: string
+  headSha: string
+  headMatches: boolean
+  recordedHead?: string
+  checks: { name: string, status: 'pass' | 'fail' | 'missing' | 'stale' }[]
+  ready: boolean
+}
+
 /** One resolved role route as the model sees it. */
 export interface Route {
   role: string
@@ -225,6 +237,28 @@ const SETUP_SCHEMA = {
   },
 } as const
 
+/** Accept-check (R5 fingerprint) block: receipt vs code version, mechanically. */
+const ACCEPT_CHECK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    receipt: { type: 'string', required: true },
+    ticket: { type: 'string' },
+    headSha: { type: 'string', required: true },
+    headMatches: { type: 'boolean', required: true },
+    recordedHead: { type: 'string' },
+    checks: {
+      type: 'array', required: true, items: {
+        type: 'object', additionalProperties: false, properties: {
+          name: { type: 'string', required: true },
+          status: { type: 'string', enum: ['pass', 'fail', 'missing', 'stale'], required: true },
+        },
+      },
+    },
+    ready: { type: 'boolean', required: true },
+  },
+} as const
+
 const DECISION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -234,6 +268,7 @@ const DECISION_SCHEMA = {
     route: ROUTE_SCHEMA,
     alternatives: { type: 'array', required: true, items: ROUTE_SCHEMA },
     setup: SETUP_SCHEMA,
+    acceptCheck: ACCEPT_CHECK_SCHEMA,
   },
 } as const
 
@@ -590,6 +625,8 @@ export function apply(ctx: Context, config: Config) {
       needs_vision: { type: 'boolean', description: 'The work reads images or screenshots.' },
       needs_long_output: { type: 'boolean', description: 'The work must produce a large single output (whole document, big file).' },
       review_for: { type: 'string', description: 'When this dispatch is a code review, name the role that wrote the code. Same-vendor reviewers are refused: correlated models make correlated mistakes.' },
+      accept_check: { type: 'string', description: 'R5 mechanical acceptance: pass an absolute receipt path (the receipt must contain a 「指纹」 section with HEAD sha and per-check status). Verifies the receipt matches the current git HEAD and every acceptance command passed. Returns acceptCheck instead of a route.' },
+      project_root: { type: 'string', description: 'Git working directory for accept_check (defaults to the repo containing the receipt).' },
     },
     output: {
       schema: DECISION_SCHEMA,
@@ -597,6 +634,10 @@ export function apply(ctx: Context, config: Config) {
     },
     async execute(args) {
       refresh()
+      // R5: accept_check is a mode switch, not a route query.
+      if (args.accept_check !== undefined && args.accept_check !== '') {
+        return { ok: false, reason: 'accept-check mode', alternatives: [], acceptCheck: runAcceptCheck(args.accept_check, args.project_root) }
+      }
       const now = new Date()
       const all = () => roles.map(toRoute)
       // Omitting the role is the doctor call: the answer carries `setup` even when the table
@@ -635,6 +676,37 @@ export function apply(ctx: Context, config: Config) {
       return { ok: true, reason: 'route accepted', route: toRoute(route), alternatives: [] }
     },
   }))
+}
+
+/** R5: mechanically verify a receipt's fingerprint block against the current git HEAD. */
+function runAcceptCheck(receiptPath: string, projectRoot?: string): AcceptCheck {
+  const receipt = (() => {
+    try { return readFileSync(receiptPath, 'utf8') } catch { return '' }
+  })()
+  const root = projectRoot ?? dirname(receiptPath)
+  const headSha = (() => {
+    try { return execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() } catch { return '' }
+  })()
+  const recordedHead = /HEAD sha[:：]\s*`?([0-9a-f]{7,40})`?/.exec(receipt)?.[1] ?? ''
+  const ticket = /工单[:：]\s*`?([^`\n]+)`?/.exec(receipt)?.[1]?.trim()
+  // Fingerprint block: each acceptance line as `- [<name>]: <status>` where status ∈ pass/fail/missing/stale.
+  const checks: { name: string, status: 'pass' | 'fail' | 'missing' | 'stale' }[] = []
+  for (const line of receipt.split('\n')) {
+    const m = /^- \[([^\]]+)\]:\s*(pass|fail|missing|stale)\s*$/.exec(line.trim())
+    if (m !== null) checks.push({ name: m[1], status: m[2] as 'pass' | 'fail' | 'missing' | 'stale' })
+  }
+  const headMatches = recordedHead !== '' && recordedHead === headSha.slice(0, recordedHead.length)
+  const ready = receipt !== '' && headSha !== '' && headMatches
+    && checks.length > 0 && checks.every(c => c.status === 'pass')
+  return {
+    receipt: receiptPath,
+    ...(ticket === undefined ? {} : { ticket }),
+    headSha,
+    headMatches,
+    ...(recordedHead === '' ? {} : { recordedHead }),
+    checks,
+    ready,
+  }
 }
 
 /** mtime of a file, or undefined when it cannot be stat'ed at all. */

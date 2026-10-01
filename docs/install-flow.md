@@ -42,14 +42,20 @@
 
 6. 对 dsh 说：**「走工单：把 xxx 项目里的 yyy 做了」**。之后是 SOP 自动运转：写工单 → `pick_route` 选路由 → `subagent` 派单 → Lead 重跑验收 → `subagent_readonly` 派异族只读审查 → 逐条核实 → 收尾。用户不在时说「我走了你接着干」进入无人托管。
 
-## 故障速查
+## 故障速查（10 条，与 doctor hints 对应）
 
 | 现象 | 原因 | 怎么办 |
 |---|---|---|
-| pick_route 全部 ok:false | 角色表未配置/写坏 | reason 里写着文件位置和错在哪，改好保存自动恢复 |
+| pick_route 全部 ok:false | 角色表未配置/写坏 | reason 写着文件位置和错在哪，改好保存自动恢复 |
 | 派单报 route not allowed | 路由不在白名单 | 加进 allowedModels，**开新会话** |
-| 会话里没有 subagent_readonly | preset 层未放行 | 按 SKILL.md 降级方案（提示词只读 + Lead git 核实），不影响主流程 |
-| 改了角色表没生效 | 改的是别的文件 | 以 pick_route 返回的 rolesFile 路径为准 |
+| subagent 没有 provider/model 入参 | standard preset 未启用 model-selection | 检查 preset 与 `subagent-model-selection-settings`，见 README 前置条件 |
+| 会话里没有 subagent_readonly | preset 层未放行 | 按 SKILL.md 降级方案（提示词只读 + git 核实） |
+| 插件页「不包含任何组件」/模型侧 NO_TOOL | bundle patch 新增行没包 `insert:` | 见 README「踩过的坑」，修 patch 后关开插件 |
+| 改了角色表没生效 | 改了别的文件 | 以 pick_route setup 返回的 rolesFile 路径为准 |
+| 改了 bundle patch 没生效 | 手改文件不通知 Host | 插件页关→开，或重启 app |
+| YAML 报「两个 roles: 键」 | 模板两组注释解开了两组 | 只解一组 |
+| skill 没自动装 | 权限/平台限制 | doctor 的 setup.skill 会给手动命令 |
+| 用量上限/电脑休眠中断托管 | 套餐到顶 / 睡眠 | 按 SKILL.md 无人托管节：到限即停，重置后叫 Lead 继续 |
 
 ## 设计原则（为什么长这样）
 

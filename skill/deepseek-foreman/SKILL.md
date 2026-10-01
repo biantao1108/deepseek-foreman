@@ -19,7 +19,8 @@ description: 工单托管（DeepSeek Harness 版）：你当经理，不自己�
    - 谁施工、谁审查。**审查必须和施工来自不同厂商**——同族模型会犯同一种错。
    - 施工是否不止一个，按活分（长输出给输出上限高的，机械批量给便宜档）。
    - 审查员是否只读。**首选 `subagent_readonly` 物理只读**：经它派出的子会话运行时只有 `read` / `grep` / `glob`，写工具改不了文件；会话里没有这个工具时（preset 层未放行）退回普通 `subagent` + 提示词只读 + Lead 审查前后各看一次 `git status`（详见第六节）。
-4. **写进 `_tickets/workers.md`**，格式见下。以后照它派，不重新摸。
+4. **跑 setup 向导**：`node node_modules/deepseek-foreman/scripts/setup.mjs`（或 npx deepseek-foreman-setup）——核对白名单、指路角色表、给出试跑小工单话术。**首次配置一律先跑它**，别徒手改 YAML。
+5. **写进 `_tickets/workers.md`**，格式见下。以后照它派，不重新摸。
 
 ```markdown
 # 工人配置
@@ -165,6 +166,24 @@ _receipts/   回执、审查报告、进度、报告
 - 停下条件：队列做完；只剩卡住的单；到预算或停止时间；**同一张单失败两次**（挪 `blocked/` 写明原因）。
 
 **停下或被叫回时**：写 `_receipts/report-<日期>.md`，大白话说清哪些能用了、哪些没做完、哪些等他拍板（每条一行附你的建议）、出了什么问题、工人花了多少钱。看不到自己的用量就直说看不到，不要猜。
+
+## 十、bundle 改动冒烟清单（R12）
+
+改 `cordis.patch.yml`（加实例/改 toolFilter/改 config）是全项目最危险的操作——**离线 110 项全绿也可能 live 才炸**（T205 preset scope、T207 全局工具表都是这么来的）。每次改完必须做：
+
+1. `npm run build && node test/smoke.mjs` 全绿（离线层）
+2. **插件页关→开（或重启 app）**——手改文件不会通知运行中的 Host
+3. live 三查：模型侧 `pick_route` 有返回；新实例在模型工具列表里；**用一次该实例**（真派一个最小子任务）确认行为
+4. 报错对照两条已知坑：`standing ... requires a scoped preset Context`（bundle 层不能开 modelSelectionSettings）；`restrict() names unknown global tool`（deny/allow 名字必须在子组合全局工具表里）
+5. 以上任一失败：立即回退该行 patch，写进回执存疑，另开修复单
+
+## 十一、换会话交接（R7）
+
+**任何会话收尾前**（包括普通单、不只无人托管）写 `_tickets/handoff.md`，上限 2KB，只放七样：用户目标原话、「不做清单」、下一件的第一动作、当前 HEAD、工单/回执路径、未定决定、预算闸状态。新会话开工先读它，**不重跑盘点、不靠记忆**——只核 HEAD 与下一件工单在不在，相符就干。
+
+## 十二、上下文四档（R3）
+
+Lead 会话上下文占用自估（工单+回执+审查读入量）：**0-30% 全速**（并行派单、完整读回执）；**30-50% 正常**（优先只读结论层）；**50-70% 收缩**（只读 frontmatter，警告用户）；**70%+ 切割**（立即写交接、收尾当前单、停新派）。判断信号：措辞变虚、跳步骤、半完成——都是上下文压力前兆。
 
 ## 规矩
 

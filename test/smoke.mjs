@@ -503,5 +503,27 @@ check('T202 角色表坏文件 → status=error 且 detail 带解析摘要',
   errSetup.rolesFile.status === 'error' && errSetup.rolesFile.detail.includes('YAML 解析失败'), true)
 check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h) => h.includes('角色表有问题')), true)
 
+
+// ── R5 验收指纹（accept_check 模式）──
+{
+  const os = await import('node:os'); const fs = await import('node:fs'); const path = await import('node:path')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'foreman-accept-'))
+  const { execSync } = await import('node:child_process')
+  execSync('git init -q && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init', { cwd: dir })
+  const head = execSync('git -C ' + dir + ' rev-parse HEAD', { encoding: 'utf8' }).trim()
+  const good = path.join(dir, 'good.md')
+  fs.writeFileSync(good, `# 回执 T901\n> 工单：\`_tickets/doing/T901.md\`\n\n## 指纹\n- HEAD sha: ${head.slice(0, 8)}\n- [验收1]: pass\n- [验收2]: pass\n`)
+  const bad = path.join(dir, 'bad.md')
+  fs.writeFileSync(bad, `# 回执\n## 指纹\n- HEAD sha: deadbeef\n- [验收1]: pass\n- [验收2]: fail\n`)
+  const rGood = await call({ accept_check: good, project_root: dir })
+  const rBad = await call({ accept_check: bad, project_root: dir })
+  const rNone = await call({ accept_check: path.join(dir, 'none.md'), project_root: dir })
+  check('R5 指纹齐备且 HEAD 一致 → ready', rGood.acceptCheck.ready, true)
+  check('R5 指纹 HEAD 不符/有 fail → not ready', rBad.acceptCheck.ready, false)
+  check('R5 HEAD 核对比对正确', rBad.acceptCheck.headMatches, false)
+  check('R5 回执缺失 → checks 空且 not ready', rNone.acceptCheck.ready && rNone.acceptCheck.checks.length, false)
+}
+
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)
+

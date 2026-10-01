@@ -11,6 +11,19 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.0] - 2026-10-01
+
+### 新增（P1-P3 全部）
+- **R5 验收指纹**：`pick_route` 新增 `accept_check` 模式——机械核对回执指纹（HEAD sha + 每条验收 pass/fail）与当前 git HEAD 一致才 ready；「回执是说法不是证据」从纪律变成程序
+- **R15 setup 向导**：`npx deepseek-foreman-setup` 核对白名单/指路角色表/给试单话术
+- **R7 交接规范**：换会话 2KB 交接协议（目标/不做/下一步/HEAD/证据路径）
+- **R12 bundle 冒烟清单**：改 cordis.patch.yml 后的 5 步 live 验证（T205/T207 教训产品化）
+- **R3 上下文四档降级**：30/50/70% 行为切换
+- **R10 故障速查** 4→10 条；**R11** models 田野笔记实测回填
+
+### 自检
+- 110 → 114 项（R5 accept-check 4 项）
+
 ## [0.3.0] - 2026-10-01
 
 ### 新增
