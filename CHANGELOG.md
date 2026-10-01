@@ -3,6 +3,14 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.2] - 2026-10-01
+
+### 文档
+- README 双语定位重构：开头一句话定位「让强模型当工头、便宜模型干活、别家厂商审查——多模型协作，又省又好」+ 「小白三步」上手框
+- 新增「联合使用效果 / Works with」节：三件套联合矩阵（本包 / 精简输出 persona / 行为约束类 skill），含机制说明（persona 部署层继承已实证）与诚实口径（逐插件孤立量化未做 A/B，不给数字）
+- 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
+- `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
+
 ## [0.2.1] - 2026-10-01
 
 ### 文档

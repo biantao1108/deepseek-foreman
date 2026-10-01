@@ -4,9 +4,15 @@ English | [中文](README.md)
 
 # deepseek-foreman
 
-Write work as tickets and dispatch them to **cheaper models**; the Lead only breaks down the work, dispatches it, re-runs the acceptance commands personally, sends it to a **different vendor** for read-only review, and verifies every finding one by one. When nobody is around, it keeps working through the queue.
+**A strong model as foreman, cheap models doing the work, another vendor reviewing — multi-model teamwork that is cheaper and better.** Write work as tickets and dispatch them to **cheaper models**; the Lead only breaks down the work, dispatches it, re-runs the acceptance commands personally, and verifies every finding one by one. When nobody is around, it keeps working through the queue.
 
 Built for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`).
+
+**Beginners: three steps** (no cordis / YAML / CLI experience needed):
+
+1. Install dsh with routes for ≥2 different vendors;
+2. add `deepseek-foreman` from the plugin page;
+3. open a new session and say "**help me set up foreman — I have models from \<two vendors\>**".
 
 > **Version 0.2.0 of this project was itself iterated to completion using this very system** — 19 tickets overnight; see [docs/dogfooding.md](docs/dogfooding.md).
 
@@ -149,6 +155,22 @@ The full sprint ran in one night (2026-09-30 23:00 – 2026-10-01 12:00); the nu
 - 2 "109 green offline, only blows up live" incidents were caught by the process and fixed.
 
 **Token spend** (source: screenshot of the dsh subagent panel; measurement base = cumulative tokens of that build session): build tickets ran 330K–590K tokens each, verification calls 6K–16K tokens each. All build tokens were spent on cheap models — the Lead's context only holds tickets, receipts and review comments, never source code; that is the cost-saving mechanism. No strict A/B experiment was run, so no percentage claims are made; readers can check every line item in the dsh subagent panel themselves.
+
+Per-plugin contribution and the two companion pieces are covered under [Works with](#works-with) below.
+
+## Works with
+
+The three pieces cover one segment each and add up:
+
+| Piece | What it does | How to get it |
+|---|---|---|
+| **deepseek-foreman (this package)** | the strong model foremen: dispatch, personally re-run acceptance, verify item by item; cheap models build; another vendor reviews read-only. `pick_route`'s four hard constraints + physical read-only `subagent_readonly` | **included in this package** (takes effect on install) |
+| **Concise-output persona** ([persona.example.md](persona.example.md)) | ponytail-style output discipline: check yourself level by level before acting (don't do it if it can be skipped, reuse before writing new, one line before ten), conclusion first, one-or-two-sentence reports | **included, opt-in**: select-all copy the template → the `personaPrefix` field of the system-prompt plugin in dsh settings → save |
+| **Behaviour-constraint skill** (e.g. superpowers) | guard rails for the agent's behaviour: TDD, acceptance-first rules | **bring your own, optional** |
+
+**Mechanism**: the persona hangs on the `personaPrefix` field of dsh's system-prompt plugin (deployment layer) and **child sessions inherit it automatically** (verified: both the `dsh-subagent` source and actual child-session behaviour) — workers receive deployment-level discipline, so it need not be restated per ticket.
+
+**Honest accounting**: the overall numbers from the 19 tickets are in [Field data](#field-data) above; per-plugin isolated quantification **has had no A/B control, so no numbers are given** — only mechanisms: build dominates token spend → cheap workers; dialogue and judgement stay terse → persona; quality holds → cross-vendor review + item-by-item verification. The three mechanisms each own one segment, and they stack.
 
 ## Status
 
