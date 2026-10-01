@@ -2,6 +2,7 @@
 
 > 派单：dsh <Lead 的 provider/model> | 日期：YYYY-MM-DD
 > worker-route: <施工用的 provider/model>
+> difficulty: <trivial|normal|critical>
 > workdir: <相对项目根目录的作业目录；在根目录就删掉这行>
 > claimed-by: （派单时由 Lead 填写实际生效的 provider/model/reasoning_effort 和时间）
 

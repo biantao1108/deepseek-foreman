@@ -11,6 +11,19 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.3.0] - 2026-10-01
+
+### 新增
+- **成本台账**：回执模板记录施工 token/effort/wall-clock；progress.md 周汇总；handoff.md 预算闸（单张/累计/Lead 轮数上限，到限即停）
+- **工单分级 effort scaling**：trivial/normal/critical 三级（trivial 跳审查、critical 双审查），失败 2 次升档重派
+- **审查路由解绑**：normal 单默认「异族便宜模型+提示词只读」，物理只读 subagent_readonly 留 critical 单
+- **强制 pick_route**：派单前必调，硬约束不可绕过
+- **回执蒸馏契约**：Lead 默认只读结论层三段；验收输出 >50 行落盘贴首尾
+
+### 文档
+- 可量化测试数据看板（图表+模型分工逻辑，脱敏可发布）：docs/metrics-2026-10-01.md
+- 第三方双盲审报告（k3 / mimo2.6-pro）+ 业界对照调研
+
 ## [0.2.1] - 2026-10-01
 
 ### 文档
