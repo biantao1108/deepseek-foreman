@@ -1,0 +1,8 @@
+# npm 发布隐私排除（比 package.json files 更强的兜底）
+_tickets/
+_receipts/
+docs/plan-open-source.md
+docs/交接.md
+*.local.md
+._*
+.DS_Store

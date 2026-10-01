@@ -9,7 +9,7 @@
 > 面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的多模型协作插件——又省又好。
 > 社区插件，与 DeepSeek 官方无隶属关系。
 
-![效果看板](docs/metrics-2026-10-01.png)
+![效果看板](https://raw.githubusercontent.com/biantao1108/deepseek-foreman/main/docs/metrics-2026-10-01.png)
 
 ## 为什么
 

@@ -9,7 +9,7 @@
 > Multi-model teamwork for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — cheaper *and* better.
 > A community plugin, not affiliated with DeepSeek.
 
-![Metrics dashboard](docs/metrics-2026-10-01.png)
+![Metrics dashboard](https://raw.githubusercontent.com/biantao1108/deepseek-foreman/main/docs/metrics-2026-10-01.png)
 
 ## Why
 

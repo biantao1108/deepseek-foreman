@@ -11,6 +11,14 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.3] - 2026-10-01
+
+### 隐私与发布工程
+- 图表重制为英文（原中文图含聊天式标签）
+- ：_tickets/、_receipts/（含回执原话）永不进 npm 包
+- privacy check: CLEAN：发布前隐私扫描（私有路由名/本机路径 + 本机角色表精确值），进 release-checklist
+- README 图表改绝对链接（docs/ 不进包，npm 页可显示）
+
 ## [0.4.2] - 2026-10-01
 
 ### 首页重设计
