@@ -11,6 +11,13 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.2] - 2026-10-01
+
+### 首页重设计
+- README 英文为主（badges + Why 表 + 架构图 + 三步上手），细节移入 docs/
+- README.zh-CN.md 中文可选版；删除 README.en.md（英文即首页）
+- 列表内容降噪：205 行 → 65 行
+
 ## [0.4.0] - 2026-10-01
 
 ### 新增（P1-P3 全部）
@@ -57,7 +64,7 @@
 - **安装流程文档**：`docs/install-flow.md`（0–6 步从装包到派第一张工单 + 故障速查 + 设计原则），README 中英文安装节按它对齐。
 - **CI**：`.github/workflows/ci.yml`，push / PR 触发，Node 20 与 22 矩阵跑 `npm ci && npm run build && node test/smoke.mjs`。
 - **发布清单**：`docs/release-checklist.md`（脱敏 grep、版本一致性、打包内容、npm publish、发布后从 registry 装一遍验证）。
-- **英文 README**：`README.en.md`，与中文版互链。
+- **英文 README**：`README.md`，与中文版互链。
 
 ### 变更
 

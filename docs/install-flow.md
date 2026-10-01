@@ -1,10 +1,11 @@
 # 安装到能用：完整流程设计（v1，2026-10-01）
 
+> 首页见 [README](README.md)（英文为主）/ [中文首页](README.zh-CN.md)。
 > 目标读者：刚发现 deepseek-foreman 的 dsh 用户。目标：从装包到派出第一张工单 ≤ 10 分钟，全程不改 cordis patch、不手动软链。
 
 ## 小白三步（超简版）
 
-与 README 的[小白三步](../README.md#小白三步)呼应，只记三句：
+与 README 的[小白三步](../README.zh-CN.md#三步上手)呼应，只记三句：
 
 1. 装 dsh，配好 ≥2 家厂商的模型。
 2. 插件页点装 `deepseek-foreman`。
