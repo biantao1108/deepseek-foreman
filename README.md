@@ -174,6 +174,16 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 
 **口径（诚实）**：19 张工单的整体数据见上文[实测数据](#实测数据)；逐插件的孤立量化贡献**没做 A/B 对照，不给数字**，只讲机制——token 大头在实现 → 便宜工人；对话与判断从简 → persona 精简；质量不降 → 异族审查 + 逐条核实。三个机制各管一段，叠加生效。
 
+## 工单分级（effort scaling）
+
+| 级别 | 走什么流程 | 派单 effort |
+|---|---|---|
+| `trivial`（≤10 行/纯文档） | 跳过异族审查，Lead 验收收尾 | low |
+| `normal`（默认） | 完整闭环 + 异族便宜审查 | 按 workers.md |
+| `critical`（数据/发布/安全） | 双审查 + 物理只读审查 | high；失败 2 次升档重派 |
+
+成本台账随每张回执记录（施工 token/effort/wall-clock），`_receipts/progress.md` 周汇总；无人托管有预算闸（到限即停）。分工逻辑与实测数据见 [可量化测试数据](docs/metrics-2026-10-01.md)。
+
 ## 状态
 
 已装进 dsh 桌面版 0.2.0-rc.2（Intel iMac）并 live 验证：冷启动正常，`pick_route` 可被模型调用，视觉约束会真的拦截并给 fallback；`subagent_readonly` 最终态同样 live 实测通过（只读工具集生效、委派工具被拦死）。

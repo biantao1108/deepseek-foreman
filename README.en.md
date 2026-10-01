@@ -176,6 +176,16 @@ The three pieces cover one segment each and add up:
 
 **Honest accounting**: the overall numbers from the 19 tickets are in [Field data](#field-data) above; per-plugin isolated quantification **has had no A/B control, so no numbers are given** — only mechanisms: build dominates token spend → cheap workers; dialogue and judgement stay terse → persona; quality holds → cross-vendor review + item-by-item verification. The three mechanisms each own one segment, and they stack.
 
+## Ticket tiers (effort scaling)
+
+| Tier | Flow | Dispatch effort |
+|---|---|---|
+| `trivial` (≤10 lines/docs) | skip cross-vendor review, Lead accepts | low |
+| `normal` (default) | full loop + cheap cross-vendor review | per workers.md |
+| `critical` (data/release/security) | double review + physical read-only | high; escalate after 2 failures |
+
+Every receipt logs a cost ledger (build token/effort/wall-clock); budget caps halt unattended runs. Model-role logic and measured data: [Quantified metrics](docs/metrics-2026-10-01.md).
+
 ## Status
 
 Installed into dsh desktop 0.2.0-rc.2 (Intel iMac) and verified live: cold start is normal, `pick_route` is callable by the model, the vision constraint really blocks and returns a fallback; the final `subagent_readonly` state is live-verified too (read-only tool set enforced, delegation tools blocked).
