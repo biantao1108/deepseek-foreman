@@ -50,6 +50,17 @@
 
 每张回执带成本台账，无人托管有预算闸。模型分工与实测：[可量化数据](docs/metrics-2026-10-01.md)。
 
+## 🧪 Beta 测试招募
+
+v0.2–v0.4 是用这套系统自举出来的。现在需要**新鲜的眼睛**：
+
+- **招谁**：用 dsh、配了 ≥2 家厂商模型的用户。**小白特别欢迎**——文档看不懂就是 bug。
+- **用时**：约 30 分钟走完三步 + 一张小工单。
+- **你得到**：早期内测、致谢名单署名、直接影响下一步做什么。
+- **我们需要**：1-2 张截图、哪里看不懂、一个数字——你的单均成本对比用前。
+
+**[开 Issue 报名 →](https://github.com/biantao1108/deepseek-foreman/issues/new?title=Beta%20tester%20sign-up)**——标题写「Beta tester sign-up」，正文说下你的环境（dsh 版本 + 厂商）。Star 仓库也能收到进展。
+
 ## 致谢
 
 移植自 [yanauto/opus-manager](https://github.com/yanauto/opus-manager)（MIT，© 2026 yanauto）——工单/回执契约与「重跑验收、异族审查、逐条核实」打法在上游经 8 周 13 仓库 360 单验证。双版权声明见 [LICENSE](LICENSE)。
