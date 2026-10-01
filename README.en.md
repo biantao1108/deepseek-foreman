@@ -12,6 +12,10 @@ Built for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`
 
 The design and the ticket/receipt contract are ported from [yanauto/opus-manager](https://github.com/yanauto/opus-manager) (MIT, Copyright (c) 2026 yanauto). Upstream is a **Claude Code skill**; this project is its **dsh port**. Upstream validated the flow over 8 weeks, 13 repositories and 360 tickets; this project keeps its directory contract, its acceptance criteria, and the principle that "a receipt is a claim, not evidence".
 
+## Acknowledgements
+
+Our thanks to [yanauto/opus-manager](https://github.com/yanauto/opus-manager): the ticket/receipt contract and the whole discipline of "re-run acceptance yourself, hand the work to a different vendor for read-only review, verify every finding one by one" were proven upstream over 8 weeks, 13 repositories and 360 tickets. This project is only its **dsh port** — the directory contract is kept, the principles are kept, and so is the line "a receipt is a claim, not evidence". Both are released under **MIT**; the two copyright notices live in [LICENSE](LICENSE).
+
 ## Why port it to dsh
 
 Upstream has to use external CLI tools (`pi`, `cursor-agent`, `codex`, `agy`) as workers, because **Claude Code has no entry point for swapping models per sub-task** — the model is hard-coded in the subagent definition, plus a global switch meaning "all subagents use the same model".
@@ -57,7 +61,7 @@ From package to first dispatched ticket in ≤ 10 minutes — just follow steps 
    | `allowlist` | the `allowedModels` pairs scanned from each profile's `cordis.patch.yml`, reconciled against the role table; `unmatchedRoles` lists roles not on the allowlist |
    | `hints` | a plain-language hint for each problem found (e.g. "route deepseek/xxx of role daily-code is not in allowedModels; add it to the allowlist, then open a new session") |
 
-6. **Work by ticket**: tell dsh "**work this ticket: do yyy in the xxx project**". The SOP then runs itself: write the ticket → `pick_route` picks the route → `subagent` dispatches → the Lead re-runs acceptance → `subagent_readonly` dispatches a cross-vendor read-only review → verify item by item → wrap up. Say "I'm leaving, keep going" to enter unattended mode.
+6. **Work by ticket**: tell dsh "**work this ticket: do yyy in the xxx project**". The SOP then runs itself: write the ticket → `pick_route` picks the route → `subagent` dispatches → the Lead re-runs acceptance → `subagent_readonly` dispatches a cross-vendor read-only review → verify item by item → wrap up. Say "I'm leaving, keep going" to enter unattended mode — the nine-step section and the queue rules live in [SKILL.md](skill/deepseek-foreman/SKILL.md) §9 (无人托管 / unattended management); if something goes wrong after dispatch, use the 故障速查 (troubleshooting) table in [docs/install-flow.md](docs/install-flow.md).
 
 Note: hints 目前为中文输出 / hints are currently emitted in Chinese.
 
@@ -106,7 +110,7 @@ The bundle patch of this package also mounts **`subagent_readonly`** (the read-o
 Note: whether this tool **appears in a session depends on dsh's preset layer** — this package only guarantees that its own bundle-patch layer is written correctly. If `subagent_readonly` is not present in the session, fall back to the scheme in [SKILL.md](skill/deepseek-foreman/SKILL.md): the review prompt states "do not modify any files; run read-only commands only", and the Lead checks `git status` once before and once after the review.
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 109 self-checks
+npm install && npm run build && node test/smoke.mjs   # 110 self-checks
 ```
 
 The `Lead` role should match `agent-default-model` (the model the session actually runs as); otherwise the "brain" is misnamed.
@@ -128,9 +132,9 @@ Also: **hand-editing a bundle's patch file does not notify the running Host** (c
 
 ## Status
 
-Installed into dsh desktop 0.2.0-rc.2 (Intel iMac) and verified live: cold start is normal, `pick_route` is callable by the model, and the vision constraint really blocks and returns a fallback.
+Installed into dsh desktop 0.2.0-rc.2 (Intel iMac) and verified live: cold start is normal, `pick_route` is callable by the model, the vision constraint really blocks and returns a fallback; the final `subagent_readonly` state is live-verified too (read-only tool set enforced, delegation tools blocked).
 
-The ticket SOP (`skill/`) has been run on real tasks: on 2026-10-01 this project used its own flow to complete T001/T002, T101, T102 and T102b, and the `_tickets/` / `_receipts/` contract is now established here — the whole chain (dispatch → build → cross-vendor read-only review → item-by-item verification → fix receipt) is closed.
+The ticket SOP (`skill/`) has run a full sprint on real tasks: on 2026-10-01 it took T001–T207 (fix tickets included) through the whole night, the `_tickets/` / `_receipts/` contract is established here, the whole chain (dispatch → build → cross-vendor read-only review → item-by-item verification → fix receipt) is closed, and the self-checks grew from 20 to 110.
 
 Field report: [docs/dogfooding.md](docs/dogfooding.md).
 

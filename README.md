@@ -12,6 +12,10 @@
 
 设计与工单/回执契约移植自 [yanauto/opus-manager](https://github.com/yanauto/opus-manager)（MIT，Copyright (c) 2026 yanauto）。上游是一个 **Claude Code skill**；本项目是它的 **dsh 移植版**。上游用 8 周、13 个仓库、360 张工单验证了这套流程，本项目沿用它的目录契约、验收标准和"回执是说法不是证据"原则。
 
+## 致谢
+
+感谢 [yanauto/opus-manager](https://github.com/yanauto/opus-manager)：工单/回执契约，以及"验收亲自重跑、换一家厂商只读审查、发现逐条核实"这套打法，都是上游用 8 周、13 个仓库、360 张工单实打实跑出来的。本项目只是它的 **dsh 移植版**——目录契约照搬、原则照搬，连"回执是说法不是证据"这句话也照搬。上游与本项目同以 **MIT** 发布，双份版权声明见 [LICENSE](LICENSE)。
+
 ## 为什么要移植到 dsh
 
 上游必须靠外部命令行工具（`pi`、`cursor-agent`、`codex`、`agy`）当工人，因为 **Claude Code 没有"按次给子任务换模型"的入口**——它的模型静态写在 subagent 定义里，外加一个"所有子代理用同一个模型"的全局开关。
@@ -57,7 +61,7 @@
    | `allowlist` | 扫各 profile 的 `cordis.patch.yml` 拿到的 `allowedModels` 白名单，与角色表对账；`unmatchedRoles` 列出不在白名单的角色 |
    | `hints` | 有问题时的一句人话指引（如「角色 daily-code 的路由不在 allowedModels，把它加进白名单后开新会话」） |
 
-6. **走工单**：对 dsh 说「**走工单：把 xxx 项目里的 yyy 做了**」。之后 SOP 自动运转：写工单 → `pick_route` 选路由 → `subagent` 派单 → Lead 重跑验收 → `subagent_readonly` 派异族只读审查 → 逐条核实 → 收尾。用户不在时说「我走了你接着干」进入无人托管。
+6. **走工单**：对 dsh 说「**走工单：把 xxx 项目里的 yyy 做了**」。之后 SOP 自动运转：写工单 → `pick_route` 选路由 → `subagent` 派单 → Lead 重跑验收 → `subagent_readonly` 派异族只读审查 → 逐条核实 → 收尾。用户不在时说「我走了你接着干」进入无人托管——九个环节与队列规矩见 [SKILL.md](skill/deepseek-foreman/SKILL.md) 的「九、无人托管」；派单后出岔子按 [docs/install-flow.md](docs/install-flow.md) 的「故障速查」查。
 
 ## 配置角色表（`~/.dsh/foreman.roles.yml`）
 
@@ -104,7 +108,7 @@ $EDITOR ~/.dsh/foreman.roles.yml   # 填好 provider/model，保存即生效
 注意：这个工具**能否出现在会话里取决于 dsh 的 preset 层**，本包只保证 bundle patch 这一层写对。若会话里没有 `subagent_readonly`，就按 [SKILL.md](skill/deepseek-foreman/SKILL.md) 的降级方案执行——审查提示词写明「不要改任何文件，只跑只读命令」，Lead 在审查前后各看一次 `git status` 核实。
 
 ```bash
-npm install && npm run build && node test/smoke.mjs   # 109 项自检
+npm install && npm run build && node test/smoke.mjs   # 110 项自检
 ```
 
 `Lead` 角色应与 `agent-default-model`（会话实际跑的模型）一致，否则"大脑"名不副实。
@@ -126,9 +130,9 @@ bundle 的 `cordis.patch.yml` 里**新增插件行要包在 `insert:` 下**：
 
 ## 状态
 
-已装进 dsh 桌面版 0.2.0-rc.2（Intel iMac）并 live 验证：冷启动正常，`pick_route` 可被模型调用，视觉约束会真的拦截并给 fallback。
+已装进 dsh 桌面版 0.2.0-rc.2（Intel iMac）并 live 验证：冷启动正常，`pick_route` 可被模型调用，视觉约束会真的拦截并给 fallback；`subagent_readonly` 最终态同样 live 实测通过（只读工具集生效、委派工具被拦死）。
 
-工单 SOP（`skill/`）已在真实任务上跑过：2026-10-01 用本项目自己的流程跑完 T001/T002、T101、T102、T102b，`_tickets/` / `_receipts/` 契约已在本项目建起来，「派单 → 施工 → 异族只读审查 → 逐条核实 → 修复回单」整条链路闭环。
+工单 SOP（`skill/`）已在真实任务上跑完整轮冲刺：2026-10-01 一晚把 T001–T207（含修复单）全部走完，`_tickets/` / `_receipts/` 契约在本项目立了起来，「派单 → 施工 → 异族只读审查 → 逐条核实 → 修复回单」整条链路闭环，自检从 20 项一路长到 110 项。
 
 实证记录见 [docs/dogfooding.md](docs/dogfooding.md)。
 

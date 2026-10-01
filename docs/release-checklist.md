@@ -17,7 +17,7 @@
 npm ci && npm run build && node test/smoke.mjs 2>&1 | tail -1
 ```
 
-期望：`全部通过（62 项）`。（项数随自检增长而变，以仓库 README 与 `test/smoke.mjs` 末尾输出为准。）
+期望：`全部通过（110 项）`。（项数随自检增长而变，以仓库 README 与 `test/smoke.mjs` 末尾输出为准。）
 
 ### 1.2 脱敏检查（应为零）
 
