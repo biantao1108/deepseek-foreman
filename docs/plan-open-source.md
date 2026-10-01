@@ -145,7 +145,7 @@ bundle patch 增加（包在 `insert:` 下）：
 | 风险 | 影响 | 验证/缓解 |
 |---|---|---|
 | preset 层可能不认识 insert 的第三实例 | readonly 工具不出现在会话 | M2 第一单实测；失败则保持"提示词+git 核实"并在 README 写明 |
-| readonly 实例可能不带按次 provider/model | 异族审查无法换厂商 | 同上，实测；必要时给 insert config 补 modelSelectionSettings |
+| readonly 实例可能不带按次 provider/model | 异族审查无法换厂商 | 同上，实测；不可行——standing 挂载带 modelSelectionSettings 且无 preset scope 会 throw（T205 实锤回退），只读实例固定跑会话默认路由 |
 | toolFilter allow 名单写错名 → 启动 fail loud | 插件页报错 | 名单对照 standard preset 实际工具集，进 smoke.mjs 断言 |
 | 角色表热更新读到坏 YAML | 不崩：保留旧表 + 返回错误说明 | T102 单测覆盖 |
 | skill 自动安装写权限/平台差异 | 降级为提示手动，不阻断 | T301 单测 mock |

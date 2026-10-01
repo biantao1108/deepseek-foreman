@@ -24,9 +24,8 @@
       provider: spawn
       toolName: subagent_readonly
       backgroundMode: continuable
-      # 打开后本实例暴露 provider/model/reasoning_effort 入参（受白名单约束），
-      # 只读审查才能按次换厂商做异族审查——与 standard preset 的 subagent 实例一致。
-      modelSelectionSettings: true
+      # bundle 层不能开按次换模型（standing 挂载需要 preset scope，见 dsh-tool-subagent 源码），
+      # 子会话跑会话默认路由（=经理位模型），正好覆盖异族审查主场景；k3 自己写的活仍是已知空洞。
       toolFilter:
         allow:
         - read
