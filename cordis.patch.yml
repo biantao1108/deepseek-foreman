@@ -31,8 +31,9 @@
         - read
         - grep
         - glob
+        # subagent 不在子组合的全局工具表里，deny 它会触发 restrict() 的 unknown global tool 校验失败；
+        # 委派绕过由 maxDepth 兜底（T204 已实测），这里只挡实际存在的 subagent_fork/subagent_readonly/workflow。
         deny:
-        - subagent
         - subagent_fork
         - subagent_readonly
         - workflow

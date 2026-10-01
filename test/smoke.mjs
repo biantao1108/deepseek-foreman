@@ -304,11 +304,15 @@ check('toolFilter.allow 恰好是 read/grep/glob（顺序无关）',
   (Array.isArray(readonlyEntry?.config?.toolFilter?.allow)
     && readonlyEntry.config.toolFilter.allow.length === 3
     && ['read', 'grep', 'glob'].every((t) => readonlyEntry.config.toolFilter.allow.includes(t))), true)
-check('toolFilter.deny 恰好是 subagent/subagent_fork/subagent_readonly/workflow（堵委派绕过）',
+check('toolFilter.deny 恰好是 subagent_fork/subagent_readonly/workflow（堵委派绕过）',
   (Array.isArray(readonlyEntry?.config?.toolFilter?.deny)
-    && readonlyEntry.config.toolFilter.deny.length === 4
-    && ['subagent', 'subagent_fork', 'subagent_readonly', 'workflow']
+    && readonlyEntry.config.toolFilter.deny.length === 3
+    && ['subagent_fork', 'subagent_readonly', 'workflow']
       .every((t) => readonlyEntry.config.toolFilter.deny.includes(t))), true)
+// T207：subagent 不在子组合全局工具表，deny 它会让 restrict() 抛 unknown global tool
+check('toolFilter.deny 不含 subagent（不存在的名字会校验失败）',
+  Array.isArray(readonlyEntry?.config?.toolFilter?.deny)
+    && !readonlyEntry.config.toolFilter.deny.includes('subagent'), true)
 check('config.modelSelectionSettings 不存在（bundle 层 standing 挂载开它会 throw）',
   readonlyEntry?.config?.modelSelectionSettings, undefined)
 check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
