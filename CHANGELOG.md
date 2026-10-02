@@ -11,6 +11,12 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.4] - 2026-10-01
+
+### 使用数据回收（真实使用驱动迭代）
+- SOP 新增「使用数据回收」：每个项目收尾追加工单台账到 ~/.dsh/foreman-insights/usage/（跨项目汇总）
+- 每 10 单或每周自动分析（usage → analysis → 需求候选 → 下一版工单）
+
 ## [0.4.3] - 2026-10-01
 
 ### 隐私与发布工程

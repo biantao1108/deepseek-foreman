@@ -52,6 +52,10 @@ Everything is plain Markdown in your repo: tickets, receipts, review reports. **
 
 Cost ledger per receipt, budget caps for unattended runs. Model roles & field data: [metrics](docs/metrics-2026-10-01.md).
 
+## 📈 Built from real usage
+
+Every ticket you run feeds an anonymized local ledger (`~/.dsh/foreman-insights/`); every 10 tickets (or weekly) the data turns into the next version's requirements. This project's own roadmap came from exactly that loop.
+
 ## Acknowledgements
 
 Ported from [yanauto/opus-manager](https://github.com/yanauto/opus-manager) (MIT, © 2026 yanauto) — the ticket/receipt contract and the "re-run acceptance, cross-vendor review, verify every finding" playbook were proven there over 8 weeks / 13 repos / 360 tickets. Dual copyright in [LICENSE](LICENSE).

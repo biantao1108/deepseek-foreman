@@ -50,6 +50,10 @@
 
 每张回执带成本台账，无人托管有预算闸。模型分工与实测：[可量化数据](docs/metrics-2026-10-01.md)。
 
+## 📈 由真实使用驱动迭代
+
+你跑的每张工单都会进本地台账（`~/.dsh/foreman-insights/`，仅本机）；每 10 张单或每周，数据自动分析成下一版需求。本项目自己的路线图就是这么来的。
+
 ## 致谢
 
 移植自 [yanauto/opus-manager](https://github.com/yanauto/opus-manager)（MIT，© 2026 yanauto）——工单/回执契约与「重跑验收、异族审查、逐条核实」打法在上游经 8 周 13 仓库 360 单验证。双版权声明见 [LICENSE](LICENSE)。
