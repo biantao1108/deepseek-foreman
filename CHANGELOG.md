@@ -11,10 +11,17 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.6] - 2026-10-03
+
+### 隐私边界（用户数据本机化）
+- insights 台账（~/.dsh/foreman-insights/）明确为**仅本机**，永不进 git/npm；README 声明无遥测
+- release-checklist 新增「本机数据边界」检查项
+- privacy-check 加用户项目名/本机路径模式（base64 防自检泄漏）；CHANGELOG 匿名化历史条目
+
 ## [0.4.5] - 2026-10-03
 
 ### insights 闭环运转（首个真实项目数据已入库）
-- usage 台账新增 f1-video-studio 回填（5 单，零重做零事故）
+- usage 台账新增首个外部项目回填（匿名化，5 单，零重做零事故）
 - analysis #1：识别 token 计量断层（P0）→ 回执模板禁止编数、insights schema 定稿
 - 收尾 SOP 绑定 insights schema 列定义
 

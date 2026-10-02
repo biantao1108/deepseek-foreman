@@ -8,6 +8,11 @@ import { readFileSync, existsSync } from 'node:fs'
 const b64 = ['eGlhb21pLXRva2Vu', 'a2ltaS1jb2Rpbmc=', 'bWluaW1heC1jbg==', 'ZGVlcHNlZWstb2ZmaWNpYWw=']
 const FORBIDDEN = b64.map(t => new RegExp(Buffer.from(t, 'base64').toString(), 'i'))
 FORBIDDEN.push(/\/Users\/bianta/, /\/Volumes\/Data/)
+// 用户项目名与本机专属标识（追加模式，base64 防自检泄漏）
+const b64user = ['ZjEtdmlkZW8tc3R1ZGlv', '5oql5byg']
+for (const t of b64user) FORBIDDEN.push(new RegExp(Buffer.from(t, 'base64').toString(), 'i'))
+// insights 数据内容（usage/analysis 文件本身）永不进 git；路径引用合法
+
 // 从本机角色表取 provider/model 精确值（能读到时）
 try {
   const roles = JSON.parse(execSync(`node -e "const y=require('yaml');console.log(JSON.stringify((y.parse(require('fs').readFileSync(process.env.HOME+'/.dsh/foreman.roles.yml','utf8')).roles||[]).flatMap(r=>[r.provider,r.model]).filter(Boolean)))"`, { encoding: 'utf8' }))

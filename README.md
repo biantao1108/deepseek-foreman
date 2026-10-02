@@ -54,7 +54,7 @@ Cost ledger per receipt, budget caps for unattended runs. Model roles & field da
 
 ## 📈 Built from real usage
 
-Every ticket you run feeds an anonymized local ledger (`~/.dsh/foreman-insights/`); every 10 tickets (or weekly) the data turns into the next version's requirements. This project's own roadmap came from exactly that loop.
+Every ticket you run feeds an anonymized local ledger (`~/.dsh/foreman-insights/`) — **it never leaves your machine**; no telemetry, nothing uploaded. Every 10 tickets (or weekly) the data turns into the next version's requirements. This project's own roadmap came from exactly that loop.
 
 ## Acknowledgements
 
