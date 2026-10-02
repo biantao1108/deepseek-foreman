@@ -11,6 +11,13 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.4.5] - 2026-10-03
+
+### insights 闭环运转（首个真实项目数据已入库）
+- usage 台账新增 f1-video-studio 回填（5 单，零重做零事故）
+- analysis #1：识别 token 计量断层（P0）→ 回执模板禁止编数、insights schema 定稿
+- 收尾 SOP 绑定 insights schema 列定义
+
 ## [0.4.4] - 2026-10-01
 
 ### 使用数据回收（真实使用驱动迭代）
