@@ -11,6 +11,13 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.5.1] - 2026-10-03
+
+### 模型记录（派单与收单双记）
+- 台账 schema：派单模型/实到模型/审查模型分列，token in/out 分桶
+- 路由偏差（派单≠实到）标「路由偏差」进问题标记
+- SOP 绑定：实到模型取工人回执自报（list_subagent_models 可核对）
+
 ## [0.5.0] - 2026-10-03
 
 ### token 计量闭环（解决两期断层）
