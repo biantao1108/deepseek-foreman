@@ -10,7 +10,7 @@
 
 # 精简输出 persona 模板（普通 Lead 模式用）
 
-> 另有「秘书模式」（对话用便宜模型蒸馏需求、高阶模型只干活）——见 docs/secretary-mode.md。
+> 另有「秘书模式」persona（会话切 MiniMax M3.1 + 本目录 persona.secretary.example.md）——设计见 docs/secretary-mode.md。
 
 # 精简输出 persona 模板
 

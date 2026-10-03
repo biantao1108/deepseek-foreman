@@ -11,6 +11,12 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.5.2] - 2026-10-03
+
+### 秘书模式（M3.1 对话、Lead 干活）
+- persona.secretary.example.md 随包：会话切 MiniMax M3.1 粘贴即用
+- 设计文档 docs/secretary-mode.md（零改造路径 + v0.6 messenger 完整版）
+
 ## [0.5.1] - 2026-10-03
 
 ### 模型记录（派单与收单双记）

@@ -1,6 +1,6 @@
 {
   "name": "deepseek-foreman",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Foreman for DeepSeek Harness: your best model leads, cheaper models build, a rival vendor reviews. Role-to-route adjudication with peak-window, vision, output-size and cross-vendor-review constraints.",
   "type": "module",
   "main": "lib/index.js",
@@ -20,7 +20,8 @@
     "roles.example.yml",
     "skill/",
     "persona.example.md",
-    "scripts/setup.mjs"
+    "scripts/setup.mjs",
+    "persona.secretary.example.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
