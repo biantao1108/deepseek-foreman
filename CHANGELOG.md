@@ -11,6 +11,13 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.5.0] - 2026-10-03
+
+### token 计量闭环（解决两期断层）
+- **pick_route 新增 cost 模式**： 从 dsh token-meter 投影读**真实** token（input/output/cache 四桶），不是估算
+- 回执模板/SOP 绑定：收尾前先读真数再记账，禁止编数
+- 自检 114 → 116 项
+
 ## [0.4.6] - 2026-10-03
 
 ### 隐私边界（用户数据本机化）

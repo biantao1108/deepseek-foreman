@@ -238,6 +238,25 @@ const SETUP_SCHEMA = {
 } as const
 
 /** Accept-check (R5 fingerprint) block: receipt vs code version, mechanically. */
+/** Cost meter block: real per-session token usage from the dsh token-meter projection. */
+const COST_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    session: { type: 'string', required: true },
+    found: { type: 'boolean', required: true },
+    detail: { type: 'string' },
+    totals: {
+      type: 'object', additionalProperties: false, properties: {
+        inputTokens: { type: 'integer' },
+        outputTokens: { type: 'integer' },
+        cacheReadTokens: { type: 'integer' },
+        cacheWriteTokens: { type: 'integer' },
+      },
+    },
+  },
+} as const
+
 const ACCEPT_CHECK_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -269,6 +288,7 @@ const DECISION_SCHEMA = {
     alternatives: { type: 'array', required: true, items: ROUTE_SCHEMA },
     setup: SETUP_SCHEMA,
     acceptCheck: ACCEPT_CHECK_SCHEMA,
+    cost: COST_SCHEMA,
   },
 } as const
 
@@ -627,6 +647,7 @@ export function apply(ctx: Context, config: Config) {
       review_for: { type: 'string', description: 'When this dispatch is a code review, name the role that wrote the code. Same-vendor reviewers are refused: correlated models make correlated mistakes.' },
       accept_check: { type: 'string', description: 'R5 mechanical acceptance: pass an absolute receipt path (the receipt must contain a 「指纹」 section with HEAD sha and per-check status). Verifies the receipt matches the current git HEAD and every acceptance command passed. Returns acceptCheck instead of a route.' },
       project_root: { type: 'string', description: 'Git working directory for accept_check (defaults to the repo containing the receipt).' },
+      cost_session: { type: 'string', description: "Token metering: pass a session id to read that session real token usage (token-meter projection). Omit to meter the current session. Returns cost instead of a route - use it to fill cost ledgers with measured numbers, never estimates." },
     },
     output: {
       schema: DECISION_SCHEMA,
@@ -634,6 +655,10 @@ export function apply(ctx: Context, config: Config) {
     },
     async execute(args) {
       refresh()
+      // Cost metering is a mode switch too.
+      if (args.cost_session !== undefined) {
+        return { ok: false, reason: 'cost meter mode', alternatives: [], cost: readCost(ctx, args.cost_session) }
+      }
       // R5: accept_check is a mode switch, not a route query.
       if (args.accept_check !== undefined && args.accept_check !== '') {
         return { ok: false, reason: 'accept-check mode', alternatives: [], acceptCheck: runAcceptCheck(args.accept_check, args.project_root) }
@@ -676,6 +701,47 @@ export function apply(ctx: Context, config: Config) {
       return { ok: true, reason: 'route accepted', route: toRoute(route), alternatives: [] }
     },
   }))
+}
+
+/** Read real token usage for one session from the dsh token-meter projection (no estimates). */
+function readCost(ctx: Context, sessionId: string | undefined): CostMeter {
+  const sessions = (ctx as unknown as { get(name: string): { get(id: string): unknown, current?: () => unknown, list?: unknown } | undefined }).get('sessions')
+  const projections = (ctx as unknown as { get(name: string): { snapshot(session: unknown): { values: Record<string, unknown> } } | undefined }).get('sessionProjections')
+  const session = sessionId === undefined || sessionId === ''
+    ? undefined
+    : sessions?.get(sessionId)
+  const target = session ?? (sessions as unknown as { current?: () => unknown })?.current?.()
+  if (target === undefined || projections === undefined) {
+    return { session: sessionId ?? 'current', found: false, detail: 'session or tokenMeter projection unavailable in this deployment' }
+  }
+  try {
+    const values = projections.snapshot(target).values as Record<string, { totals?: Record<string, number> } | undefined>
+    const usage = values.tokenUsage
+    if (usage?.totals === undefined) {
+      return { session: sessionId ?? 'current', found: false, detail: 'tokenUsage projection has no totals yet' }
+    }
+    const t = usage.totals as Record<string, number>
+    return {
+      session: sessionId ?? 'current',
+      found: true,
+      totals: {
+        inputTokens: t.inputTokens ?? 0,
+        outputTokens: t.outputTokens ?? 0,
+        cacheReadTokens: t.cacheReadTokens ?? 0,
+        cacheWriteTokens: t.cacheWriteTokens ?? 0,
+      },
+    }
+  } catch (error) {
+    return { session: sessionId ?? 'current', found: false, detail: summarize(error) }
+  }
+}
+
+/** Cost meter verdict as the model sees it. */
+export interface CostMeter {
+  session: string
+  found: boolean
+  detail?: string
+  totals?: { inputTokens: number, outputTokens: number, cacheReadTokens: number, cacheWriteTokens: number }
 }
 
 /** R5: mechanically verify a receipt's fingerprint block against the current git HEAD. */

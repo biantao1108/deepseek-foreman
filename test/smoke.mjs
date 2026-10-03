@@ -524,6 +524,23 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   check('R5 回执缺失 → checks 空且 not ready', rNone.acceptCheck.ready && rNone.acceptCheck.checks.length, false)
 }
 
+// ── token 计量（cost 模式）──
+{
+  const fakeSession = { id: 's1' }
+  const fakeCtx = {
+    get(name) {
+      if (name === 'sessions') return { get: () => fakeSession }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { totals: { inputTokens: 12345, outputTokens: 678, cacheReadTokens: 9, cacheWriteTokens: 0 } } } }) }
+      return undefined
+    },
+  }
+  const mk = (ctx2) => { let t; apply({ tools: { register: (x) => { t = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-none.yml' }); return t }
+  const r = await mk(fakeCtx).execute({ cost_session: 's1' }, {})
+  check('cost 模式读到真实 token（input 12345）', r.cost.found && r.cost.totals.inputTokens, 12345)
+  const r2 = await mk({ get: () => undefined }).execute({ cost_session: 's1' }, {})
+  check('cost 模式服务缺失 → found=false 不编数', r2.cost.found, false)
+}
+
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)
 
