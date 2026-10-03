@@ -541,6 +541,23 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   check('cost 模式服务缺失 → found=false 不编数', r2.cost.found, false)
 }
 
+// ── cost recent 模式（秘书记账）──
+{
+  const s1 = { id: 'old' }, s2 = { id: 'new' }
+  const ctx2 = {
+    get(name) {
+      if (name === 'sessions') return { get: (id) => (id === 'old' ? s1 : undefined), list: () => [s1, s2] }
+      if (name === 'sessionProjections') return { snapshot: (s) => ({ values: { tokenUsage: { totals: s.id === 'old' ? { inputTokens: 100, outputTokens: 10 } : { inputTokens: 900, outputTokens: 90 } } } }) }
+      return undefined
+    },
+  }
+  let t3; apply({ tools: { register: (x) => { t3 = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-recent.yml' })
+  const r = await t3.execute({ cost_session: 'recent' }, {})
+  check('cost recent 按 token 倒序列出两个会话', r.cost.recent.length, 2)
+  check('cost recent 首位是 token 最多的会话', r.cost.recent[0].session, 'new')
+  check('cost recent 算对总数（990）', r.cost.recent[0].totalTokens, 990)
+}
+
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)
 

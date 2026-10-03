@@ -11,6 +11,12 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.5.3] - 2026-10-03
+
+### 秘书模式补齐计量
+- pick_route cost_session=recent：按 token 倒序列出所有已计费会话（秘书 subagent 拿不到子会话 id，这是唯一可核对通道）
+- 自检 116 → 119 项
+
 ## [0.5.2] - 2026-10-03
 
 ### 秘书模式（M3.1 对话、Lead 干活）

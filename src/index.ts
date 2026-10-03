@@ -254,6 +254,16 @@ const COST_SCHEMA = {
         cacheWriteTokens: { type: 'integer' },
       },
     },
+    recent: {
+      type: 'array', items: {
+        type: 'object', additionalProperties: false, properties: {
+          session: { type: 'string', required: true },
+          totalTokens: { type: 'integer', required: true },
+          inputTokens: { type: 'integer', required: true },
+          outputTokens: { type: 'integer', required: true },
+        },
+      },
+    },
   },
 } as const
 
@@ -647,7 +657,7 @@ export function apply(ctx: Context, config: Config) {
       review_for: { type: 'string', description: 'When this dispatch is a code review, name the role that wrote the code. Same-vendor reviewers are refused: correlated models make correlated mistakes.' },
       accept_check: { type: 'string', description: 'R5 mechanical acceptance: pass an absolute receipt path (the receipt must contain a 「指纹」 section with HEAD sha and per-check status). Verifies the receipt matches the current git HEAD and every acceptance command passed. Returns acceptCheck instead of a route.' },
       project_root: { type: 'string', description: 'Git working directory for accept_check (defaults to the repo containing the receipt).' },
-      cost_session: { type: 'string', description: "Token metering: pass a session id to read that session real token usage (token-meter projection). Omit to meter the current session. Returns cost instead of a route - use it to fill cost ledgers with measured numbers, never estimates." },
+      cost_session: { type: 'string', description: "Token metering: pass a session id to read that session real token usage, or \"recent\" to list the metered sessions newest-first. Returns cost instead of a route - use it to fill cost ledgers with measured numbers, never estimates." },
     },
     output: {
       schema: DECISION_SCHEMA,
@@ -707,12 +717,30 @@ export function apply(ctx: Context, config: Config) {
 function readCost(ctx: Context, sessionId: string | undefined): CostMeter {
   const sessions = (ctx as unknown as { get(name: string): { get(id: string): unknown, current?: () => unknown, list?: unknown } | undefined }).get('sessions')
   const projections = (ctx as unknown as { get(name: string): { snapshot(session: unknown): { values: Record<string, unknown> } } | undefined }).get('sessionProjections')
-  const session = sessionId === undefined || sessionId === ''
-    ? undefined
-    : sessions?.get(sessionId)
-  const target = session ?? (sessions as unknown as { current?: () => unknown })?.current?.()
-  if (target === undefined || projections === undefined) {
+  if (projections === undefined || sessions === undefined) {
     return { session: sessionId ?? 'current', found: false, detail: 'session or tokenMeter projection unavailable in this deployment' }
+  }
+  // `recent`: walk every known session and keep the ones carrying real totals.
+  // This is the secretary-facing path — a subagent call returns no session id to the
+  // model, so "which subagent just ran" is answered by reading the newest usage.
+  if (sessionId === 'recent') {
+    const all = (sessions as unknown as { list(): unknown[] }).list()
+    const rows: CostRow[] = []
+    for (const candidate of all) {
+      try {
+        const totals = (projections.snapshot(candidate).values as Record<string, { totals?: Record<string, number> } | undefined>).tokenUsage?.totals
+        if (totals === undefined) continue
+        const total = Object.values(totals).reduce((a, b) => a + (b ?? 0), 0)
+        if (total === 0) continue
+        rows.push({ session: (candidate as { id: string }).id, totalTokens: total, inputTokens: totals.inputTokens ?? 0, outputTokens: totals.outputTokens ?? 0 })
+      } catch { /* one bad session must not sink the scan */ }
+    }
+    rows.sort((a, b) => b.totalTokens - a.totalTokens)
+    return { session: 'recent', found: rows.length > 0, detail: `${rows.length} session(s) with metered usage`, recent: rows.slice(0, 20) }
+  }
+  const target = sessions.get(sessionId === undefined || sessionId === '' ? '' : sessionId)
+  if (target === undefined) {
+    return { session: sessionId ?? 'current', found: false, detail: 'no such session id; pass "recent" to list metered sessions' }
   }
   try {
     const values = projections.snapshot(target).values as Record<string, { totals?: Record<string, number> } | undefined>
@@ -736,12 +764,21 @@ function readCost(ctx: Context, sessionId: string | undefined): CostMeter {
   }
 }
 
+/** One metered session row. */
+export interface CostRow {
+  session: string
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+}
+
 /** Cost meter verdict as the model sees it. */
 export interface CostMeter {
   session: string
   found: boolean
   detail?: string
   totals?: { inputTokens: number, outputTokens: number, cacheReadTokens: number, cacheWriteTokens: number }
+  recent?: CostRow[]
 }
 
 /** R5: mechanically verify a receipt's fingerprint block against the current git HEAD. */
