@@ -572,6 +572,21 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: { get: () => 3, set: () => { throw new Error('boom') } } } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
 }
 
+// ── 委派深度：服务晚注册的场景（inject 不触发，靠工具调用时补设）──
+{
+  let depth = 1
+  let late
+  let tool3
+  const lateSvc = { config: { maxDepth: { get: () => depth, set: (v) => { depth = v } } } }
+  apply({ tools: { register: (t) => { tool3 = t } }, get: (n) => (n === 'subagents' && late ? lateSvc : undefined) },
+    { roles: [], rolesFile: '/tmp/depth-late.yml' })
+  const before = await tool3.execute({}, {})
+  check('服务未注册时如实报 no subagent service', before.setup.delegation, 'no subagent service')
+  late = true
+  const after = await tool3.execute({}, {})
+  check('服务晚注册 → 工具调用时补设成功', after.setup.delegation, 'raised 1 → 2')
+}
+
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)
 process.exit(failed === 0 ? 0 : 1)
 

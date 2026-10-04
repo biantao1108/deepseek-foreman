@@ -418,6 +418,18 @@ export function apply(ctx: Context, config: Config) {
   } else {
     delegationDepth = 'no service accessor on ctx'
   }
+  /**
+   * Re-try on tool use. The subagent service is registered after this plugin loads, and
+   * in some hosts `ctx.inject` never settles for us, so the first pick_route call is the
+   * reliable moment: by then the session exists, so the service is up.
+   */
+  const ensureDepth = (): void => {
+    if (delegationDepth.startsWith('raised') || delegationDepth.startsWith('already')) return
+    if (typeof ctxWith.get !== 'function') return
+    const service = ctxWith.get('subagents') as SubagentService | undefined
+    if (service === undefined) return // keep whatever the earlier attempt reported
+    raiseDepth(service)
+  }
 
   const inlineRoles = config.roles ?? []
   const inlineMode = inlineRoles.length > 0
@@ -717,6 +729,7 @@ export function apply(ctx: Context, config: Config) {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
+      ensureDepth()
       refresh()
       // Cost metering is a mode switch too.
       if (args.cost_session !== undefined) {

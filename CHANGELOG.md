@@ -3,6 +3,13 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.10] — 未发布（等真实项目验证）
+
+### 委派深度：改在工具调用时补设
+- `ctx.inject(['subagents'])` 在本机**实测未触发**（doctor 显示 `not read yet`），服务名确认无误（`super(ctx, "subagents")`）。改为在每次 `pick_route` 执行前补设一次——那时会话已存在，服务必然注册。
+- 三重兜底：inject（若触发）→ apply 期同步 get → 工具调用时 get。doctor 的 `delegation` 字段如实反映每条路径结果。
+- 自检 121 → 123 项（新增「服务晚注册」场景）。
+
 ## [0.6.1-rc.9] — 未发布（等真实项目验证）
 
 ### 委派深度：改用 ctx.inject 等待服务注册
