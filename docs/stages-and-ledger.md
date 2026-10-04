@@ -13,7 +13,7 @@
 | `report` | 回传 | 由 `session` 执行 | 汇总各阶段结论 → 汇报给用户 | 计入 session |
 
 **命名说明**：
-- `foreman` = 工头 = 产品名 = 角色表里的 `lead` 角色（**role key 保持 `lead` 不改**，避免配置断裂；文档统一称 foreman）
+- `foreman` = 工头 = 产品名 = 角色表里的 `foreman` 角色（**role key 即 `foreman`**，v0.7.0 起与五阶段词表同名，文档与配置从此一套叫法）
 - `reviewer` 必须与 `worker` 异族，否则 `pick_route` 硬拒
 - `report` 不是新模型，是 `session` 的一次动作；但**它是必经步骤**——不回传，用户看不到结果、秘书无法追问、下一轮会丢产出
 

@@ -28,3 +28,9 @@
 
 ## 5. 风险与存疑
 <没能验证的、没覆盖的边界、没做完的。没有就写"无"。>
+
+## 指纹
+<回执末尾必附，供 `pick_route accept_check` 机械核对：HEAD 必须等于收尾时的 `git rev-parse HEAD` 前 8 位，每条验收一行且全为 pass，缺一条或有 fail 都会被判 not ready。>
+- HEAD sha: <git rev-parse HEAD 的前 8 位，无反引号外的装饰>
+- [<验收1 的名称>]: pass
+- [<验收2 的名称>]: pass

@@ -48,7 +48,7 @@ export interface RoleRoute {
 export interface Config {
   /** Inline role table. Non-empty wins over `rolesFile`, for callers that configure in cordis. */
   roles: RoleRoute[]
-  /** External role file; a leading `~/` expands to the home directory. Empty means `<home>/.dsh/foreman.roles.yml`. */
+  /** External role file; a `~/` prefix expands to the home directory. Empty means `<home>/.dsh/foreman.roles.yml`. */
   rolesFile: string
   /** Install the packaged skill into `<home>/.dsh/skills` when the plugin loads. Default true. */
   installSkill: boolean
@@ -718,7 +718,7 @@ export function apply(ctx: Context, config: Config) {
       + 'Call before every ticket dispatch and pass the returned provider/model/reasoning_effort to the '
       + 'subagent tool; do not choose a model yourself. A refused route must not be worked around.',
     parameters: {
-      role: { type: 'string', description: 'Role key from the table, e.g. lead, daily-code, review, copywriting, chores.' },
+      role: { type: 'string', description: 'Role key from the table, e.g. foreman, daily-code, review, copywriting, chores.' },
       needs_vision: { type: 'boolean', description: 'The work reads images or screenshots.' },
       needs_long_output: { type: 'boolean', description: 'The work must produce a large single output (whole document, big file).' },
       review_for: { type: 'string', description: 'When this dispatch is a code review, name the role that wrote the code. Same-vendor reviewers are refused: correlated models make correlated mistakes.' },
@@ -803,7 +803,7 @@ function readSessionModel(session: unknown): string | undefined {
   const log = (session as { log?: unknown }).log
   if (!Array.isArray(log)) return undefined
   // The first `inheritedEventCount` events are the fork parent's history (dsh-session
-  // Session: "Number of leading events inherited from this Session's fork parent";
+  // Session field doc — events inherited from this Session's fork parent;
   // ownEvents() starts at that offset), so starting there stops us from reporting the
   // parent's model as this sub-session's model.
   const inherited = (session as { inheritedEventCount?: unknown }).inheritedEventCount

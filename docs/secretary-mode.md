@@ -19,7 +19,7 @@ Lead（K3 级）子会话               ← 分析、拆单、派单、验收、
 
 **可行，有一条纯零工具改造路径 + 一条完整路径：**
 
-1. **零改造（今天就能用）**：会话模型切到便宜档 + `persona.example.md` 加「秘书纪律」——秘书把对话蒸馏成需求包，经 subagent 派给 `lead` 角色（modelSelectionSettings: true 已实测，按次换 K3）。每轮聊天只付 flash 价；Lead 子会话只看蒸馏包。
+1. **零改造（今天就能用）**：会话模型切到便宜档 + `persona.example.md` 加「秘书纪律」——秘书把对话蒸馏成需求包，经 subagent 派给 `foreman` 角色（modelSelectionSettings: true 已实测，按次换 K3）。每轮聊天只付 flash 价；Lead 子会话只看蒸馏包。
    - 限制：Lead 子会话的产出要秘书转述给用户；Lead 不回写文件（子会话可写，但验收链要秘书顺手跑）。
 2. **完整版（v0.6 插件）**：`messenger` 工具——副线程挂秘书（agentOptions 锁 flash），主线程（用户对话）由**宿主自动注入** Lead 子会话的最终报告（dsh 已有机制：continuable 子会话结束时「runtime sends the parent a notice containing its outcome and any final assistant message」）。
    - 硬点：文档报告 ≠ 自动进主线程文本，需验证 notice 注入形态；Lead 持续对话则用 followup API（ctx.subagents.followup 已实证存在于 apiproxy）。
@@ -47,7 +47,7 @@ Lead（K3 级）子会话               ← 分析、拆单、派单、验收、
 ```
 你 ⇄ MiniMax M3.1（会话模型 = 秘书，flash 价）
       │ 需求包落 _tickets/req-*.md（文件优先：长内容零压缩、可 diff、可寻址）
-      ▼ pick_route role=lead
+      ▼ pick_route role=foreman
 Kimi K3（Lead：分析、拆单、派单、亲跑验收、逐条核实）
       ├── MiMo-V2.6-Flash（主力施工，可带视觉，high）
       ├── DeepSeek-V4.1-Flash（半价窗口/高峰自动改派）
@@ -56,15 +56,15 @@ Kimi K3（Lead：分析、拆单、派单、亲跑验收、逐条核实）
 ```
 
 **实测结论**（本机跑通，模型名用公开产品名）：
-- 角色表热更新即生效（改完 `pick_route lead` 当场返回新路由），K3 派单实测可跑。
+- 角色表热更新即生效（改完 `pick_route foreman` 当场返回新路由），K3 派单实测可跑。
 - 同族硬约束生效：K3 审 K3 被拒（both vendor same）；MiMo-V2.6-Pro 审 K3 通过。
 - 秘书人格必须**新开会话**才注入（personaPrefix 在会话启动时读）；0.5.3 的 `cost_session=recent` 必须**重启 app** 进内存。这两条是踩过的坑。
 
 ## 别人的复制步骤
 
-1. 角色表用 `roles.example.yml` 的**组合 C**（lead/lead-backup/daily-code/review/review-alt，跨族约束已写进注释）。
+1. 角色表用 `roles.example.yml` 的**组合 C**（foreman/foreman-backup/daily-code/review/review-alt，跨族约束已写进注释）。
 2. 会话模型切最便宜档 → system-prompt 插件的 personaPrefix 贴 [persona.secretary.example.md](../persona.secretary.example.md)（仅当会话模型是廉价档时生效，规则里带条件判断）。
-3. 重开会话 → 说人话；秘书追问 → 落需求包文件 → 派 lead（提示只给路径）→ 回来结论。
+3. 重开会话 → 说人话；秘书追问 → 落需求包文件 → 派 foreman（提示只给路径）→ 回来结论。
 
 ## 为什么需求包走文件（2026-10-04 演练后补）
 

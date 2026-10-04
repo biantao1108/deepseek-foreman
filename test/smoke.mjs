@@ -14,7 +14,7 @@ process.env.HOME = mkdtempSync(join(tmpdir(), 'foreman-sandbox-'))
 let tool
 apply({ tools: { register: (t) => { tool = t } } }, {
   roles: [
-    route('lead', 'vendor-a', 'provider-a', 'model-a'),
+    route('foreman', 'vendor-a', 'provider-a', 'model-a'),
     route('ui-design', 'vendor-a', 'provider-a', 'model-a', { vision: true }),
     route('daily-code', 'vendor-b', 'provider-b', 'model-b', { vision: true }),
     route('daily-code-offpeak', 'vendor-c', 'provider-c', 'model-c', {
@@ -121,15 +121,15 @@ const save = (file, text, seconds) => {
   utimesSync(file, seconds, seconds) // 显式 mtime：热更新判定不靠写文件的时间精度
 }
 const exampleYml = readFileSync(new URL('../roles.example.yml', import.meta.url), 'utf8')
-const tableA = ['roles:', '  - role: lead', '    vendor: vendor-a', '    provider: provider-a',
+const tableA = ['roles:', '  - role: foreman', '    vendor: vendor-a', '    provider: provider-a',
   '    model: model-a', '  - role: review', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
 const tableB = ['roles:', '  - role: chores', '    vendor: vendor-a', '    provider: provider-a',
   '    model: model-a', '  - role: review', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
-const tableBroken = 'roles:\n  - role: lead\n   vendor: vendor-a\n'
-const tableDup = ['roles:', '  - role: lead', '    vendor: vendor-a', '    provider: provider-a',
-  '    model: model-a', '  - role: lead', '    vendor: vendor-b', '    provider: provider-b',
+const tableBroken = 'roles:\n  - role: foreman\n   vendor: vendor-a\n'
+const tableDup = ['roles:', '  - role: foreman', '    vendor: vendor-a', '    provider: provider-a',
+  '    model: model-a', '  - role: foreman', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
 const inlineOnly = [route('only', 'vendor-a', 'provider-a', 'model-a')]
 
@@ -142,7 +142,7 @@ check('config.roles 非空 → 不读也不铺 rolesFile', existsSync(ghost), fa
 const ignored = join(dir, 'ignored.yml')
 save(ignored, tableA, 1_700_000_000)
 const inlineTool2 = mount({ roles: inlineOnly, rolesFile: ignored })
-check('config.roles 非空 → 文件里的角色不参与裁决', (await inlineTool2.execute({ role: 'lead' }, {})).ok, false)
+check('config.roles 非空 → 文件里的角色不参与裁决', (await inlineTool2.execute({ role: 'foreman' }, {})).ok, false)
 const thrown = (fn) => { try { fn(); return '没抛错' } catch (error) { return error.message } }
 check('config 直传角色重名仍然当场抛错（老行为保留）',
   thrown(() => mount({ roles: [route('dup', 'vendor-a', 'provider-a', 'model-a'), route('dup', 'vendor-b', 'provider-b', 'model-b')] })),
@@ -153,7 +153,7 @@ const autoFile = join(dir, 'nested', 'deep', 'foreman.roles.yml')
 const bootTool = mount({ roles: [], rolesFile: autoFile })
 check('rolesFile 不存在 → 自动铺出模板（含父目录）', existsSync(autoFile), true)
 check('铺出的模板与包内 roles.example.yml 一致', readFileSync(autoFile, 'utf8') === exampleYml, true)
-const boot = await bootTool.execute({ role: 'lead' })
+const boot = await bootTool.execute({ role: 'foreman' })
 check('未配置态：指定角色也 ok:false', boot.ok, false)
 check('未配置态：reason 带文件位置与下一步', boot.reason.includes(autoFile) && boot.reason.includes('按注释填好 provider/model，保存即生效'), true)
 const bootList = await bootTool.execute({})
@@ -176,17 +176,17 @@ try {
 const liveFile = join(dir, 'live.yml')
 const liveTool = mount({ roles: [], rolesFile: liveFile })
 save(liveFile, tableA, 1_700_000_000)
-check('写入合法 rolesFile → 下次调用即生效（热更新）', (await liveTool.execute({ role: 'lead' })).ok, true)
+check('写入合法 rolesFile → 下次调用即生效（热更新）', (await liveTool.execute({ role: 'foreman' })).ok, true)
 check('热更新后列出新表的 2 个角色', (await liveTool.execute({})).alternatives.length, 2)
 save(liveFile, tableBroken, 1_700_000_100)
 const broken = await liveTool.execute({})
 check('改坏 rolesFile → 本次调用 ok:false', broken.ok, false)
 check('改坏后 reason 带 YAML 解析错误摘要', broken.reason.includes('YAML 解析失败') && broken.reason.includes('line 3'), true)
 check('改坏后保留上一份好表（alternatives 仍 2 条）', (await liveTool.execute({})).alternatives.length, 2)
-check('改坏期间指定角色也仍被拒', (await liveTool.execute({ role: 'lead' })).ok, false)
+check('改坏期间指定角色也仍被拒', (await liveTool.execute({ role: 'foreman' })).ok, false)
 save(liveFile, tableB, 1_700_000_200)
 check('文件修好后自动恢复', (await liveTool.execute({ role: 'chores' })).ok, true)
-check('恢复后用的是新表（旧表 lead 已不存在）', (await liveTool.execute({ role: 'lead' })).ok, false)
+check('恢复后用的是新表（旧表 foreman 已不存在）', (await liveTool.execute({ role: 'foreman' })).ok, false)
 
 // e. 文件里的重名与 schema 类型错误都走校验失败路径
 const dupFile = join(dir, 'dup.yml')
@@ -217,7 +217,7 @@ try {
   const tildePath = join(tildeHome, '.dsh', 'foreman.roles.yml')
   check('rolesFile 写 ~/ → 插件把模板落到 <home>/.dsh/foreman.roles.yml', existsSync(tildePath), true)
   save(tildePath, tableA, 1_700_000_000)
-  check('~/ 展开后的那份文件被真正读成角色表', (await tildeTool.execute({ role: 'lead' })).ok, true)
+  check('~/ 展开后的那份文件被真正读成角色表', (await tildeTool.execute({ role: 'foreman' })).ok, true)
 } finally {
   if (homeBefore === undefined) delete process.env.HOME
   else process.env.HOME = homeBefore
@@ -227,10 +227,10 @@ try {
 const toctouFile = join(dir, 'toctou.yml')
 const toctouTool = mount({ roles: [], rolesFile: toctouFile })
 save(toctouFile, tableA, 1_700_000_000)
-check('TOCTOU 回归：先读到表 A（lead 可用）', (await toctouTool.execute({ role: 'lead' })).ok, true)
+check('TOCTOU 回归：先读到表 A（foreman 可用）', (await toctouTool.execute({ role: 'foreman' })).ok, true)
 save(toctouFile, tableB, 1_700_000_050)
 check('TOCTOU 回归：再改一次读到的是表 B（chores 可用）', (await toctouTool.execute({ role: 'chores' })).ok, true)
-check('TOCTOU 回归：旧表 A 的角色随新表失效（lead 不在表 B）', (await toctouTool.execute({ role: 'lead' })).ok, false)
+check('TOCTOU 回归：旧表 A 的角色随新表失效（foreman 不在表 B）', (await toctouTool.execute({ role: 'foreman' })).ok, false)
 
 // h. 运行中文件被删：当次调用即重铺模板，不带上一份文件的陈旧报错
 const goneFile = join(dir, 'gone.yml')
@@ -248,9 +248,9 @@ check('删文件后当次调用是干净的「未配置」态（无陈旧 YAML �
 const goneLive = join(dir, 'gone-live.yml')
 save(goneLive, tableA, 1_700_000_000)
 const goneLiveTool = mount({ roles: [], rolesFile: goneLive })
-check('删文件前基线：表 A 在内存里可用', (await goneLiveTool.execute({ role: 'lead' })).ok, true)
+check('删文件前基线：表 A 在内存里可用', (await goneLiveTool.execute({ role: 'foreman' })).ok, true)
 rmSync(goneLive)
-const goneLiveAfter = await goneLiveTool.execute({ role: 'lead' })
+const goneLiveAfter = await goneLiveTool.execute({ role: 'foreman' })
 check('有旧表时删文件 → 重铺模板 + 空表保旧表，不带陈旧错',
   existsSync(goneLive) && goneLiveAfter.ok === false
   && goneLiveAfter.reason.includes('文件里是空表') && !goneLiveAfter.reason.includes('配置文件读取失败'), true)
@@ -274,9 +274,9 @@ check('COPYFILE_EXCL：那次冲突没有覆盖出任何文件', existsSync(link
 const emptyFile = join(dir, 'empty.yml')
 save(emptyFile, tableA, 1_700_000_000)
 const emptyTool = mount({ roles: [], rolesFile: emptyFile })
-check('空表前基线：表 A 可用', (await emptyTool.execute({ role: 'lead' })).ok, true)
+check('空表前基线：表 A 可用', (await emptyTool.execute({ role: 'foreman' })).ok, true)
 save(emptyFile, 'roles: []\n', 1_700_000_100)
-const emptied = await emptyTool.execute({ role: 'lead' })
+const emptied = await emptyTool.execute({ role: 'foreman' })
 check('文件改成合法空表 → 本次调用 ok:false', emptied.ok, false)
 check('空表保旧表：alternatives 仍是表 A 的 2 条', emptied.alternatives.length, 2)
 check('空表 reason 说明保留了旧表',
@@ -412,7 +412,7 @@ writeFileSync(join(docHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'), 
 mkdirSync(join(docHome, '.dsh', 'profiles', 'broken'), { recursive: true })
 writeFileSync(join(docHome, '.dsh', 'profiles', 'broken', 'cordis.patch.yml'), 'allowedModels: [oops\n')
 const docTool = withHome(docHome, () => mount({ roles: [
-  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('foreman', 'vendor-a', 'provider-a', 'model-a'),
   route('rogue', 'vendor-b', 'provider-x', 'model-y'),
 ] }))
 // 白名单扫描发生在 execute 那一刻 → 临时 HOME 必须把调用也包住
@@ -421,7 +421,7 @@ check('T202 白名单扫描到 provider-a/model-a',
   docSetup.allowlist.routes.some((p) => p.provider === 'provider-a' && p.model === 'model-a'), true)
 check('T202 白名单对账 status=ok', docSetup.allowlist.status, 'ok')
 check('T202 白名单外的角色被标出', docSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
-check('T202 白名单内的 lead 不被误标', docSetup.allowlist.unmatchedRoles.some((m) => m.role === 'lead'), false)
+check('T202 白名单内的 foreman 不被误标', docSetup.allowlist.unmatchedRoles.some((m) => m.role === 'foreman'), false)
 check('T202 读不到的 profile patch 标 unknown', docSetup.allowlist.profiles.filter((p) => p.status === 'unknown').length, 1)
 check('T202 hints 点名 rogue 并指路「加白名单后开新会话」',
   docSetup.hints.some((h) => h.includes('角色 rogue') && h.includes('加进白名单后开新会话')), true)
@@ -455,7 +455,7 @@ writeFileSync(join(scopedHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'
   '',
 ].join('\n'))
 const scopedTool = withHome(scopedHome, () => mount({ roles: [
-  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('foreman', 'vendor-a', 'provider-a', 'model-a'),
   route('rogue', 'vendor-b', 'provider-x', 'model-y'),
 ] }))
 const scopedSetup = (await withHome(scopedHome, () => scopedTool.execute({}))).setup
@@ -463,8 +463,8 @@ check('T202b 只收集 name 含 model-selection 条目下的 allowedModels',
   scopedSetup.allowlist.routes.some((p) => p.provider === 'provider-x' && p.model === 'model-y'), false)
 check('T202b 只在别的插件 allowedModels 里的角色仍被标为 unmatched',
   scopedSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
-check('T202b roleMatches 注明 lead 匹配到 desktop',
-  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'lead')?.matchedIn), '["desktop"]')
+check('T202b roleMatches 注明 foreman 匹配到 desktop',
+  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'foreman')?.matchedIn), '["desktop"]')
 check('T202b roleMatches 注明 rogue 没匹配到任何 profile',
   JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'rogue')?.matchedIn), '[]')
 
@@ -492,7 +492,7 @@ const okTool = mount({ roles: [], rolesFile: okFile })
 const okSetup = (await okTool.execute({})).setup
 check('T202 角色表可读 → rolesFile.status=ok、roles=2',
   okSetup.rolesFile.status === 'ok' && okSetup.rolesFile.roles === 2, true)
-check('T202 带 role 的调用不返回 setup', 'setup' in (await okTool.execute({ role: 'lead' })), false)
+check('T202 带 role 的调用不返回 setup', 'setup' in (await okTool.execute({ role: 'foreman' })), false)
 const newFile = join(dir, 'doctor-new', 'foreman.roles.yml')
 const newSetup = (await mount({ roles: [], rolesFile: newFile }).execute({})).setup
 check('T202 角色表还没铺出 → status=unconfigured', newSetup.rolesFile.status, 'unconfigured')

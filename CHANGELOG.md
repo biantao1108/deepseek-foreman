@@ -3,6 +3,13 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.0] — 未发布（待验收后统一提交）
+
+### 破坏性改动（大版本，不设兼容回退）
+- **决策层 role key `lead` → `foreman`**：角色表键名与五阶段词表（session/foreman/worker/reviewer/report）对齐，文档与配置从此只有一套叫法。仓库侧已全量同步——`roles.example.yml`（组合 A/B/C）、`example.cordis.yml`、秘书 persona、SKILL、`docs/secretary-mode.md`、`docs/stages-and-ledger.md`、`pick_route` 工具描述串与自检 mock；**本机 `~/.dsh/foreman.roles.yml` 需同步改（已改：`role: foreman` / `role: foreman-backup`）**，`~/.dsh/foreman-insights/schema.md` 一并同步。旧配置里的 `lead` 键不再被识别，升级时请自行改键名。
+- **cost 模式对齐 dsh wire view（T305）**：修复 live 读数全灭——`readCost` 原先按原始 state 形状读 `.totals.inputTokens`，而 dsh 0.2.0-rc.2 的 `snapshot().values` 返回 wire view（无中间层、input 键为 `uncachedInputTokens`）；现读取路径与 smoke mock 全对齐，recent 行补 cache 桶（`cacheReadTokens`/`cacheWriteTokens`）与模型名（读会话事件日志 `model/selection`，退 `request/header`，读不到省略不编）。
+- 不发 npm（按既定边界，本轮只本机验证）。
+
 ## [0.6.1-rc.13] — 未发布（等真实项目验证）
 
 ### 三层委派拓扑正式上线（live 实测通过）

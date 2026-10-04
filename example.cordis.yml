@@ -21,7 +21,7 @@
     # 内联 roles 非空时优先，rolesFile 会被忽略。下面只留一条占位角色，
     # 真实角色表的写法（多角色、异族审查、时段限制等）见 roles.example.yml。
     # roles:
-    #   - role: lead
+    #   - role: foreman
     #     vendor: vendor-a
     #     provider: YOUR_PROVIDER
     #     model: YOUR_MODEL
