@@ -315,9 +315,10 @@ check('toolFilter.deny 不含 subagent（不存在的名字会校验失败）',
     && !readonlyEntry.config.toolFilter.deny.includes('subagent'), true)
 check('config.modelSelectionSettings 不存在（bundle 层 standing 挂载开它会 throw）',
   readonlyEntry?.config?.modelSelectionSettings, undefined)
-check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
-  patchRows.length > 0 && patchRows.every((row) => row !== null && typeof row === 'object'
-    && !('id' in row) && Array.isArray(row.insert)), true)
+check('patch 顶层仅允许 subagent 深度覆盖条目', patchRows.filter((e) => !e.insert).map((e) => e.id).join(','), 'subagent')
+check('patch 里 foreman 与 readonly 实例都在 insert: 下', insertEntries.map((e) => e.id).join(','), 'foreman,tool-subagent-readonly')
+check('patch 结构：insert 数组存在且条目齐全', patchRows.filter((row) => Array.isArray(row?.insert)).length > 0
+    && patchRows.filter((row) => !row.insert).every((row) => row?.id === 'subagent'), true)
 
 // ── T202：skill 自动安装 + pick_route 无 role 时返回 setup（doctor 自检） ────────────
 const skillSource = fileURLToPath(new URL('../skill/deepseek-foreman', import.meta.url))
@@ -561,14 +562,19 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
 // ── 委派深度（dsh-subagent maxDepth 默认 1，三层链靠它）──
 {
   const mkCtx = (subagents) => ({ tools: { register: () => {} }, get: (n) => (n === 'subagents' ? subagents : undefined) })
-  const cfg = { maxDepth: 1, set: (k, v) => { cfg[k] = v } }
-  apply(mkCtx({ config: cfg }), { roles: [], rolesFile: '/tmp/d1.yml' })
-  check('maxDepth 1 → 启动时抬到 2（Schema.set(key,value) 形态）', cfg.maxDepth, 2)
+  let toolD1
+  apply({ tools: { register: (t) => { toolD1 = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: 2 } } : undefined }, { roles: [], rolesFile: '/tmp/d1.yml' })
+  const rD1 = await toolD1.execute({}, {})
+  check('maxDepth 2（patch 已覆盖）→ 报 already 2', rD1.setup.delegation, 'already 2')
+  let toolD1b
+  apply({ tools: { register: (t) => { toolD1b = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: 1 } } : undefined }, { roles: [], rolesFile: '/tmp/d1b.yml' })
+  const rD1b = await toolD1b.execute({}, {})
+  check('maxDepth 1 → 不写代码，给 patch 配置 hint', /add "- id: subagent/.test(rD1b.setup.delegation), true)
   let tool2
-  apply({ tools: { register: (t) => { tool2 = t } }, get: (n) => (n === 'subagents' ? undefined : undefined) }, { roles: [], rolesFile: '/tmp/d2.yml' })
+  apply({ tools: { register: (t) => { tool2 = t } }, get: () => undefined }, { roles: [], rolesFile: '/tmp/d2.yml' })
   const r = await tool2.execute({}, {})
   check('无 subagent 服务 → 不抛错且 setup 给出说明', r.setup.delegation, 'no subagent service')
-  apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: 3, set: () => { throw new Error('boom') } } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
+  apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: 3 } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
 }
 
 // ── 委派深度：服务晚注册的场景（inject 不触发，靠工具调用时补设）──
@@ -576,15 +582,14 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   let depth = 1
   let late
   let tool3
-  const lateCfg = { maxDepth: 1, set: (k, v) => { lateCfg[k] = v } }
-  const lateSvc = { config: lateCfg }
+  const lateSvc = { config: { maxDepth: 2 } }
   apply({ tools: { register: (t) => { tool3 = t } }, get: (n) => (n === 'subagents' && late ? lateSvc : undefined) },
     { roles: [], rolesFile: '/tmp/depth-late.yml' })
   const before = await tool3.execute({}, {})
   check('服务未注册时如实报 no subagent service', before.setup.delegation, 'no subagent service')
   late = true
   const after = await tool3.execute({}, {})
-  check('服务晚注册 → 工具调用时补设成功', after.setup.delegation === 'raised 1 → 2' && lateCfg.maxDepth === 2, true)
+  check('服务晚注册 → 工具调用时读出深度', after.setup.delegation, 'already 2')
 }
 
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)

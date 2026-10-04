@@ -3,6 +3,14 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.13] — 未发布（等真实项目验证）
+
+### 三层委派拓扑正式上线（live 实测通过）
+- **根因终局**：dsh-subagent 的 maxDepth 是框架私有 volatile，只有插件加载器能写，写入触发器是配置文件变化（`updateVolatile` 私有 symbol）——之前四次代码层尝试（set/inject/调用时重试/setter 签名）全在跟这个私有写入协议打架。
+- **修法（已 live 实测）**：patch 里加裸覆盖条目 `- id: subagent / config: {maxDepth: 2}`，按 id 覆盖 dsh-base 的挂载；**保存即热推，不用重启**。实测：嵌套派单 depth 1 → depth 2 成功返回。
+- 插件代码改为**只读+hint**：doctor 的 `delegation` 字段只报告当前深度，不够就告诉用户那一行配置怎么加，不再尝试代码写入。
+- 自检 123 → 126 项；测试 mock 同步改成真实 volatile 形态。
+
 ## [0.6.1-rc.12] — 未发布（等真实项目验证）
 
 ### 评审五决定的落地（一条 rc 一批已验证改动）

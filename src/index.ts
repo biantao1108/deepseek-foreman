@@ -385,76 +385,40 @@ export function apply(ctx: Context, config: Config) {
   // keep the immediate read as a fallback for hosts that expose it synchronously.
   const requestedDepth = config.delegationDepth ?? 2
   let delegationDepth = 'not read yet'
-  type SubagentService = {
-    config?: {
-      maxDepth?: number | { get(): number, set?(key: string, value: number): void }
-      set?: (key: string, value: number) => unknown
-    }
-  }
   /**
-   * The subagent service stores its config as a schemastery Schema, whose setter takes
-   * (key, value) on the *parent* schema, not a single value on the field. Some hosts
-   * hand back a plain number instead. Try every shape; report which one worked.
+   * Read-only depth check. The host subagent service stores maxDepth as a framework-owned
+   * volatile value — only the plugin loader may write it, driven by config-file changes.
+   * Setting it from plugin code is impossible by design (private write symbol), so this
+   * plugin never tries: it reports the current depth and, when too low, tells the user
+   * the one-line config override (`id: subagent` → `config.maxDepth`) that our own
+   * bundle patch already ships.
    */
+  type SubagentService = { config?: { maxDepth?: number | { get(): number } } }
   const raiseDepth = (subagents: SubagentService | undefined): void => {
     if (subagents === undefined) {
       delegationDepth = 'no subagent service'
       return
     }
-    const config = subagents.config
-    if (config === undefined) {
-      delegationDepth = 'service exposes no config'
-      return
-    }
-    const cap = config.maxDepth
+    const cap = subagents.config?.maxDepth
     const current = typeof cap === 'number' ? cap : typeof cap?.get === 'function' ? cap.get() : undefined
     if (current === undefined) {
       delegationDepth = 'cannot read maxDepth'
       return
     }
-    if (current >= requestedDepth) {
-      delegationDepth = `already ${current}`
-      return
-    }
-    try {
-      if (typeof cap === 'number') {
-        // plain value: only the parent schema's (key, value) setter can write it back
-        if (typeof config.set === 'function') config.set('maxDepth', requestedDepth)
-        else throw new TypeError('no setter on subagent config')
-      } else if (typeof cap?.set === 'function') {
-        cap.set('maxDepth', requestedDepth)
-      } else {
-        throw new TypeError('no setter on maxDepth field')
-      }
-      delegationDepth = `raised ${current} → ${requestedDepth}`
-    } catch (error) {
-      delegationDepth = `unavailable: ${summarize(error)}`
-    }
-  }
-  const ctxWith = ctx as unknown as {
-    get(name: string): unknown
-    inject?: (requires: string[], callback: (value: never) => void) => unknown
-  }
-  if (typeof ctxWith.inject === 'function') {
-    try {
-      ctxWith.inject(['subagents'], (service) => { raiseDepth(service as SubagentService) })
-    } catch (error) {
-      delegationDepth = `inject failed: ${summarize(error)}`
-    }
-  } else if (typeof ctxWith.get === 'function') {
-    raiseDepth(ctxWith.get('subagents') as SubagentService | undefined)
-  } else {
-    delegationDepth = 'no service accessor on ctx'
+    delegationDepth = current >= requestedDepth
+      ? `already ${current}`
+      : `maxDepth ${current} < ${requestedDepth} — add "- id: subagent / config.maxDepth: ${requestedDepth}" to cordis.patch.yml (hot-reloaded by the loader)`
   }
   /**
-   * Re-try on tool use. The subagent service is registered after this plugin loads, and
-   * in some hosts `ctx.inject` never settles for us, so the first pick_route call is the
-   * reliable moment: by then the session exists, so the service is up.
+   * Re-check on tool use. The subagent service is registered after this plugin loads, so
+   * the first pick_route call is the reliable moment to read the effective depth.
    */
+  const ctxGet = (ctx as unknown as { get?(name: string): unknown }).get?.bind(ctx)
+  if (ctxGet !== undefined) raiseDepth(ctxGet('subagents') as SubagentService | undefined)
   const ensureDepth = (): void => {
-    if (delegationDepth.startsWith('raised') || delegationDepth.startsWith('already')) return
-    if (typeof ctxWith.get !== 'function') return
-    const service = ctxWith.get('subagents') as SubagentService | undefined
+    if (delegationDepth.startsWith('already') || delegationDepth.startsWith('maxDepth')) return
+    if (ctxGet === undefined) return
+    const service = ctxGet('subagents') as SubagentService | undefined
     if (service === undefined) return // keep whatever the earlier attempt reported
     raiseDepth(service)
   }
