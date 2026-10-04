@@ -3,6 +3,14 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.5] — 未发布（等真实项目验证）
+
+### 五阶段词表 + 只记数不设预算（用户拍板）
+- **阶段词表**（docs/stages-and-ledger.md）：`session` 会话/秘书 → `foreman` 决策（= 角色表 `lead`）→ `worker` 施工 → `reviewer` 审查（异族）→ `report` 回传（由 session 执行，**必经步骤**）
+- **取消预算闸**：删掉拍脑袋的「单张 500 万 token / 200 轮」等计数器，改为每单记各阶段真实 token（`cost_session=recent`），期末求和即知钱花在哪
+- 熔断只用可观测信号：连续 2 张单无验收通过 / 同一口径第 3 次被改 / 用户指定时间点
+- 记账只存 token 事实，单价在核算时现取
+
 ## [0.6.1-rc.4] — 未发布（等真实项目验证）
 
 ### rc.3 实战验证的产物（收尾一个 28 张单烂摊子）
