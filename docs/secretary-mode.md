@@ -7,7 +7,8 @@
 
 ```
 用户 ⇄ 秘书（flash 级，便宜）      ← 聊天、澄清、追问、废话过滤
-        │ 蒸馏需求包（四要素）        ← 目标/边界不做/成功信号/已定决策；放不下就落文件传路径
+        │ 落 _tickets/req-*.md（四要素 + frontmatter 结论层）
+        │ 派单提示只给：路径 + 一句话目标 + state.md 路径
         ▼
 Lead（K3 级）子会话               ← 分析、拆单、派单、验收、核实（只看蒸馏包）
         ├── worker（flash）         施工
@@ -45,7 +46,7 @@ Lead（K3 级）子会话               ← 分析、拆单、派单、验收、
 
 ```
 你 ⇄ MiniMax M3.1（会话模型 = 秘书，flash 价）
-      │ 蒸馏需求包四要素（放不下就落 _tickets/req-*.md，只留要素+路径）
+      │ 需求包落 _tickets/req-*.md（文件优先：长内容零压缩、可 diff、可寻址）
       ▼ pick_route role=lead
 Kimi K3（Lead：分析、拆单、派单、亲跑验收、逐条核实）
       ├── MiMo-V2.6-Flash（主力施工，可带视觉，high）
@@ -63,5 +64,11 @@ Kimi K3（Lead：分析、拆单、派单、亲跑验收、逐条核实）
 
 1. 角色表用 `roles.example.yml` 的**组合 C**（lead/lead-backup/daily-code/review/review-alt，跨族约束已写进注释）。
 2. 会话模型切最便宜档 → system-prompt 插件的 personaPrefix 贴 [persona.secretary.example.md](../persona.secretary.example.md)（仅当会话模型是廉价档时生效，规则里带条件判断）。
-3. 重开会话 → 说人话；秘书追问 → 派 lead → 回来结论。
+3. 重开会话 → 说人话；秘书追问 → 落需求包文件 → 派 lead（提示只给路径）→ 回来结论。
+
+## 为什么需求包走文件（2026-10-04 演练后补）
+
+首场演练里秘书把需求包**内联进 subagent 提示词**派给 Lead——违反了这套设计本身。Lead 读文件只花两次 read + 一次 grep，零成本；内联则整段进上下文、不可跳读、无法 diff、二次引用会漂。
+
+**文件优先通则**：AI 之间的长内容交接一律落文件，聊天只传路径。可寻址、可 diff、可搜索、零长度惩罚、跨会话存活、模型能先读 frontmatter 结论层再按需展开——与回执的「结论层/证据层」是同一条纪律。
 4. 每单收尾秘书自己调 `pick_route cost_session=recent` 读真实 token 记账。

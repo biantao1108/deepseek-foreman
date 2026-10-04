@@ -3,6 +3,13 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.2] — 未发布（等真实项目验证）
+
+### 文件优先通则（用户拍板，治 AI 间交接失真）
+- **需求包一律落文件** `_tickets/req-<日期>-<短名>.md`（新模板 `templates/req.md`，带 frontmatter 结论层）；派单提示只给「路径 + 一句话目标 + state.md 路径」，正文让 Lead 自己 read
+- SKILL.md 立「文件优先通则」：AI 之间的长内容交接一律落文件、聊天只传路径（可寻址/可 diff/可搜索/零长度惩罚/跨会话存活/可先读结论层）
+- 证据：2026-10-04 首场演练，秘书内联需求包派单 = 违反本设计；Lead 读文件仅两次 read + 一次 grep
+
 ## [0.6.1-rc.1] — 未发布（等真实项目验证）
 
 ### 秘书需求包约束修正（经 Lead 评审后定稿）
