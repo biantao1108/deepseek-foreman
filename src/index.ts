@@ -52,6 +52,13 @@ export interface Config {
   rolesFile: string
   /** Install the packaged skill into `<home>/.dsh/skills` when the plugin loads. Default true. */
   installSkill: boolean
+  /**
+   * Delegation depth this plugin asks the host for at startup. dsh's subagent service
+   * defaults to 1, which makes the three-stage flow (session → foreman → worker) impossible:
+   * the foreman sits at depth 1 and cannot start a worker at depth 2. Default 2.
+   * Set 1 to opt out; 0 disables delegation entirely.
+   */
+  delegationDepth: number
 }
 
 /** Schema of one role entry, shared by the inline config and the external file. */
@@ -75,6 +82,7 @@ export const Config: z<Config> = z.object({
   roles: z.array(ROLE_SCHEMA).default([]),
   rolesFile: z.string().default(''),
   installSkill: z.boolean().default(true),
+  delegationDepth: z.number().min(0).max(8).default(2),
 })
 
 /** Schema of the external role file: the same role entries under a `roles:` key. */
@@ -115,6 +123,8 @@ interface RolesFileReport {
 interface SetupReport {
   rolesFile: RolesFileReport
   skill: string
+  /** What happened to the host delegation depth at load: raised, already N, or why not. */
+  delegation: string
   allowlist: {
     /** `not-configured`: every readable profile lacks an `allowedModels` block — no whitelist to enforce yet. */
     status: 'ok' | 'unknown' | 'not-configured'
@@ -233,6 +243,7 @@ const SETUP_SCHEMA = {
         },
       },
     },
+    delegation: { type: 'string', required: true },
     hints: { type: 'array', required: true, items: { type: 'string' } },
   },
 } as const
@@ -367,6 +378,28 @@ function validateTable(data: unknown): RoleRoute[] {
 
 /** Register the role-to-route adjudication tool. */
 export function apply(ctx: Context, config: Config) {
+  // The subagent service caps delegation depth at 1 by default and the cap is volatile,
+  // i.e. designed to be set at runtime. Raising it here is what makes the three-stage
+  // flow (session → foreman → worker/reviewer) possible at all. A missing service is
+  // not an error: dsh builds without the subagent domain.
+  const requestedDepth = config.delegationDepth ?? 2
+  let delegationDepth: string
+  try {
+    const subagents = (ctx as unknown as {
+      get(name: string): { config?: { maxDepth?: { get(): number, set(v: number): void } } } | undefined
+    }).get('subagents')
+    const current = subagents?.config?.maxDepth?.get()
+    if (subagents?.config?.maxDepth === undefined) delegationDepth = 'no subagent service'
+    else if (current === undefined) delegationDepth = 'not readable'
+    else if (current >= requestedDepth) delegationDepth = `already ${current}`
+    else {
+      subagents.config.maxDepth.set(requestedDepth)
+      delegationDepth = `raised ${current} → ${requestedDepth}`
+    }
+  } catch (error) {
+    delegationDepth = `unavailable: ${summarize(error)}`
+  }
+
   const inlineRoles = config.roles ?? []
   const inlineMode = inlineRoles.length > 0
   const configured = config.rolesFile ?? ''
@@ -641,6 +674,7 @@ export function apply(ctx: Context, config: Config) {
         unmatchedRoles,
         roleMatches,
       },
+      delegation: delegationDepth,
       hints,
     }
   }

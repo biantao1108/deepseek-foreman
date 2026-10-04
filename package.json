@@ -1,6 +1,6 @@
 {
   "name": "deepseek-foreman",
-  "version": "0.6.1-rc.7",
+  "version": "0.6.1-rc.8",
   "description": "Foreman for DeepSeek Harness: your best model leads, cheaper models build, a rival vendor reviews. Role-to-route adjudication with peak-window, vision, output-size and cross-vendor-review constraints.",
   "type": "module",
   "main": "lib/index.js",

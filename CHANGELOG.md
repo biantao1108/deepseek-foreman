@@ -3,6 +3,14 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.8] — 未发布（等真实项目验证）
+
+### 委派深度：改由插件在启动时设置（补丁层无效）
+- 新增 `delegationDepth` 配置（默认 2）：插件 `apply()` 时直接把 host 的 subagent 服务深度从 1 抬到 2
+- **补丁层配置无效**：`tool-subagent` 实例活在 preset scope，profile/bundle 的同 id 条目覆盖不到它（同 T205 的 scope 坑，静默失效）；而 `maxDepth` 是 `.volatile()` 的，设计上就是给运行时设的
+- `pick_route` 的 doctor 多一个 `delegation` 字段，直接告诉你抬没抬成功（「raised 1 → 2」/「already N」/「no subagent service」）
+- 自检 119 → 121 项
+
 ## [0.6.1-rc.7] — 未发布（等真实项目验证）
 
 ### 秘书模式结构性修复 + 计量边界澄清

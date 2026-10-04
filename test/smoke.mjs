@@ -341,7 +341,7 @@ const skillSetup = (await skillTool.execute({})).setup
 check('T202 无 skills 目录 → 自动装为软链', skillSetup.skill, 'linked')
 check('T202 软链指向包内 skill/deepseek-foreman', readlinkSync(skillDir(skillHome)), skillSource)
 check('T202 软链后 SKILL.md 可读', readFileSync(join(skillDir(skillHome), 'SKILL.md'), 'utf8').includes('deepseek-foreman'), true)
-check('T202 setup 四个键齐全', Object.keys(skillSetup).join(','), 'rolesFile,skill,allowlist,hints')
+check('T202 setup 五个键齐全', Object.keys(skillSetup).join(','), 'rolesFile,skill,allowlist,delegation,hints')
 check('T202 直传 roles → rolesFile.status=ok 且注明未使用',
   skillSetup.rolesFile.status === 'ok' && skillSetup.rolesFile.detail.includes('直传'), true)
 
@@ -556,6 +556,20 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   check('cost recent 按 token 倒序列出两个会话', r.cost.recent.length, 2)
   check('cost recent 首位是 token 最多的会话', r.cost.recent[0].session, 'new')
   check('cost recent 算对总数（990）', r.cost.recent[0].totalTokens, 990)
+}
+
+// ── 委派深度（dsh-subagent maxDepth 默认 1，三层链靠它）──
+{
+  const mkCtx = (subagents) => ({ tools: { register: () => {} }, get: (n) => (n === 'subagents' ? subagents : undefined) })
+  let depth = 1
+  let tool
+  apply(mkCtx({ config: { maxDepth: { get: () => depth, set: (v) => { depth = v } } } }), { roles: [], rolesFile: '/tmp/d1.yml' })
+  check('maxDepth 1 → 启动时抬到 2', depth, 2)
+  let tool2
+  apply({ tools: { register: (t) => { tool2 = t } }, get: (n) => (n === 'subagents' ? undefined : undefined) }, { roles: [], rolesFile: '/tmp/d2.yml' })
+  const r = await tool2.execute({}, {})
+  check('无 subagent 服务 → 不抛错且 setup 给出说明', r.setup.delegation, 'no subagent service')
+  apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: { get: () => 3, set: () => { throw new Error('boom') } } } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
 }
 
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)

@@ -18,14 +18,6 @@
   # 不放开的话 foreman 收不到「depth 2 exceeds maxDepth 1」，整条三层链断在这里。
   # 顶层会话=depth 0、foreman=1、worker=2 → 设 2 刚好够；不需要多层可以改回 1。
   # 改完需关开插件或重启 app 才生效（手改文件不通知运行中的 Host）。
-  - id: tool-subagent
-    name: '@deepseek-ai/dsh-tool-subagent'
-    config:
-      provider: spawn
-      toolName: subagent
-      backgroundMode: continuable
-      modelSelectionSettings: true
-      maxDepth: 2
   # 审查派单用 subagent_readonly：经这个实例派出的子会话只有读工具（read/grep/glob），
   # 写工具从提示里消失、执行也会被拒——只读审查从「提示词自觉」变成运行时强制。
   # toolFilter.deny 是为了堵委派绕过：实测委派工具（subagent 等）不会被 allow 名单滤掉，
