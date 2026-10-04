@@ -6,8 +6,8 @@
 ## [0.6.1-rc.9] — 未发布（等真实项目验证）
 
 ### 委派深度：改用 ctx.inject 等待服务注册
-- 上版在  里同步取 ，实测返回 ——**插件加载时该服务尚未注册**。改为  等注册后再设深度，保留同步读取作兜底。
-- doctor 的  字段会显示  /  / ，一眼看出成没成。
+- 上版在 apply() 里同步取 `ctx.get('subagents')`，实测返回 `no subagent service`——**插件加载时该服务尚未注册**。改为 `ctx.inject(['subagents'], …)` 等注册后再设深度，保留同步读取作兜底。
+- doctor 的 `delegation` 字段会显示 `not read yet` / `raised 1 → 2` / `no subagent service`，一眼看出成没成。
 
 ## [0.6.1-rc.8] — 未发布（等真实项目验证）
 
