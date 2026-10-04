@@ -380,24 +380,43 @@ function validateTable(data: unknown): RoleRoute[] {
 export function apply(ctx: Context, config: Config) {
   // The subagent service caps delegation depth at 1 by default and the cap is volatile,
   // i.e. designed to be set at runtime. Raising it here is what makes the three-stage
-  // flow (session → foreman → worker/reviewer) possible at all. A missing service is
-  // not an error: dsh builds without the subagent domain.
+  // flow (session → foreman → worker/reviewer) possible at all. The service is usually
+  // not registered yet when a plugin's apply() runs, so wait for it with ctx.inject and
+  // keep the immediate read as a fallback for hosts that expose it synchronously.
   const requestedDepth = config.delegationDepth ?? 2
-  let delegationDepth: string
-  try {
-    const subagents = (ctx as unknown as {
-      get(name: string): { config?: { maxDepth?: { get(): number, set(v: number): void } } } | undefined
-    }).get('subagents')
-    const current = subagents?.config?.maxDepth?.get()
-    if (subagents?.config?.maxDepth === undefined) delegationDepth = 'no subagent service'
-    else if (current === undefined) delegationDepth = 'not readable'
-    else if (current >= requestedDepth) delegationDepth = `already ${current}`
-    else {
-      subagents.config.maxDepth.set(requestedDepth)
-      delegationDepth = `raised ${current} → ${requestedDepth}`
+  let delegationDepth = 'not read yet'
+  const raiseDepth = (subagents: SubagentService | undefined): void => {
+    const cap = subagents?.config?.maxDepth
+    if (cap === undefined) {
+      delegationDepth = subagents === undefined ? 'no subagent service' : 'service has no maxDepth'
+      return
     }
-  } catch (error) {
-    delegationDepth = `unavailable: ${summarize(error)}`
+    try {
+      const current = cap.get()
+      if (current >= requestedDepth) delegationDepth = `already ${current}`
+      else {
+        cap.set(requestedDepth)
+        delegationDepth = `raised ${current} → ${requestedDepth}`
+      }
+    } catch (error) {
+      delegationDepth = `unavailable: ${summarize(error)}`
+    }
+  }
+  type SubagentService = { config?: { maxDepth?: { get(): number, set(v: number): void } } }
+  const ctxWith = ctx as unknown as {
+    get(name: string): unknown
+    inject?: (requires: string[], callback: (value: never) => void) => unknown
+  }
+  if (typeof ctxWith.inject === 'function') {
+    try {
+      ctxWith.inject(['subagents'], (service) => { raiseDepth(service as SubagentService) })
+    } catch (error) {
+      delegationDepth = `inject failed: ${summarize(error)}`
+    }
+  } else if (typeof ctxWith.get === 'function') {
+    raiseDepth(ctxWith.get('subagents') as SubagentService | undefined)
+  } else {
+    delegationDepth = 'no service accessor on ctx'
   }
 
   const inlineRoles = config.roles ?? []
