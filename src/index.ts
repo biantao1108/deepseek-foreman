@@ -385,24 +385,52 @@ export function apply(ctx: Context, config: Config) {
   // keep the immediate read as a fallback for hosts that expose it synchronously.
   const requestedDepth = config.delegationDepth ?? 2
   let delegationDepth = 'not read yet'
+  type SubagentService = {
+    config?: {
+      maxDepth?: number | { get(): number, set?(key: string, value: number): void }
+      set?: (key: string, value: number) => unknown
+    }
+  }
+  /**
+   * The subagent service stores its config as a schemastery Schema, whose setter takes
+   * (key, value) on the *parent* schema, not a single value on the field. Some hosts
+   * hand back a plain number instead. Try every shape; report which one worked.
+   */
   const raiseDepth = (subagents: SubagentService | undefined): void => {
-    const cap = subagents?.config?.maxDepth
-    if (cap === undefined) {
-      delegationDepth = subagents === undefined ? 'no subagent service' : 'service has no maxDepth'
+    if (subagents === undefined) {
+      delegationDepth = 'no subagent service'
+      return
+    }
+    const config = subagents.config
+    if (config === undefined) {
+      delegationDepth = 'service exposes no config'
+      return
+    }
+    const cap = config.maxDepth
+    const current = typeof cap === 'number' ? cap : typeof cap?.get === 'function' ? cap.get() : undefined
+    if (current === undefined) {
+      delegationDepth = 'cannot read maxDepth'
+      return
+    }
+    if (current >= requestedDepth) {
+      delegationDepth = `already ${current}`
       return
     }
     try {
-      const current = cap.get()
-      if (current >= requestedDepth) delegationDepth = `already ${current}`
-      else {
-        cap.set(requestedDepth)
-        delegationDepth = `raised ${current} → ${requestedDepth}`
+      if (typeof cap === 'number') {
+        // plain value: only the parent schema's (key, value) setter can write it back
+        if (typeof config.set === 'function') config.set('maxDepth', requestedDepth)
+        else throw new TypeError('no setter on subagent config')
+      } else if (typeof cap?.set === 'function') {
+        cap.set('maxDepth', requestedDepth)
+      } else {
+        throw new TypeError('no setter on maxDepth field')
       }
+      delegationDepth = `raised ${current} → ${requestedDepth}`
     } catch (error) {
       delegationDepth = `unavailable: ${summarize(error)}`
     }
   }
-  type SubagentService = { config?: { maxDepth?: { get(): number, set(v: number): void } } }
   const ctxWith = ctx as unknown as {
     get(name: string): unknown
     inject?: (requires: string[], callback: (value: never) => void) => unknown

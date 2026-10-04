@@ -3,6 +3,13 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.11] — 未发布（等真实项目验证）
+
+### 委派深度：修 setter 姿势（真错误终于浮出水面）
+- 之前三次尝试分别败在：补丁层覆盖不到 preset scope 实例、`ctx.inject` 不触发、**把 schemastery 的 `Schema.set(key, value)` 当成单参 setter 调**（实测报错 `cap.set is not a function`）。
+- 现在按真实形态处理：`config.maxDepth` 可能是数字、也可能是带 `get()` 的字段 Schema，父 `config` 才有 `set(key,value)`；三条路径都试，doctor 如实报走通哪条。
+- 自检的 mock 一并改成真实 Schema 形态——**之前的 mock 形状本身就是错的，这正是「mock 照抄错误形状导致测试全绿、live 全灭」的又一次重演**。
+
 ## [0.6.1-rc.10] — 未发布（等真实项目验证）
 
 ### 委派深度：改在工具调用时补设
