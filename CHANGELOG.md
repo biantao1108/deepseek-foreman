@@ -3,6 +3,13 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.3] — 未发布（等真实项目验证）
+
+### 体积限制全拆（同族扫尾）
+- **handoff 2KB 上限已删**（最后一个活着的「压小」规则）：改 frontmatter 结论层 + 正文不限长；新模板 `templates/handoff.md`
+- 状态/决策/口径一律走文件并在 frontmatter 给路径，不塞交接正文
+- 全仓扫描确认：正文规则里已无任何字节上限（research/review/roadmap 里的 2KB 是历史记录，不回改）
+
 ## [0.6.1-rc.2] — 未发布（等真实项目验证）
 
 ### 文件优先通则（用户拍板，治 AI 间交接失真）
