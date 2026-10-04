@@ -19,9 +19,15 @@
 
 ## 台账格式（每张工单一行，只记数不设限）
 
-| 时间 | 工单 | session | foreman | worker | reviewer | 回传 | 结果 | 问题标记 |
+| 时间 | 工单 | session | foreman | worker | reviewer | report | 结果 | 问题标记 |
 |---|---|---|---|---|---|---|---|---|
-| 2026-10-04 12:00 | T037-对齐口径 | 12.3万 | 88.1万 | 214.6万 | 31.2万 | ✅ | done | ok |
+| 2026-10-04 12:00 | T037-对齐口径 | 12.3万 | 88.1万 | 见面板 | 见面板 | ✅ | done | ok |
+
+> **`worker` / `reviewer` 两列写「见面板」是设计决定，不是缺数据。**
+> 依据（2026-10-04 源码实证）：`list_agents` 的 output schema 是**闭集**（`kind/id/label/status/parent/depth`），
+> **不含 token 字段**；子代理 tokenUsage 投影只进浏览器 UI（`dsh-client-ui-subagent/lib/client.js:233`），
+> **模型侧没有任何工具能读到**。所以这两段的精确数字由**人在 dsh 子代理面板看**，
+> 模型**不估算、不编造**——这是「回执是说法不是证据」在计量上的延伸。
 
 > 单位：万 token。取自 `pick_route cost_session=recent`（服务端真实计量，不是估算）。
 
@@ -30,6 +36,7 @@
 - **累计**：每期末按阶段求和 → 得到「本项目/本周期各阶段花了多少」。
 - **成本**：各阶段 token × 该模型单价 = 分阶段成本。单价随厂商变动，**记账只存 token，单价在核算时现取**——这样 token 数永远是可核对的事实。
 - **一句话结论**：贵模型的 token 花在 `foreman`（判断），便宜模型的 token 花在 `worker`（实现）。**看这个比值就知道钱花在哪了**，比任何预算数字都有用。
+- **各阶段数字的来源分工**：`session` / `foreman` 模型自己读得到（`pick_route cost_session=recent` 读当前会话）；`worker` / `reviewer` **模型读不到，去 dsh 面板看**。这条分工是本产品的已知边界，不是待修项。
 
 ## 为什么取消「预算闸」
 

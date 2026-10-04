@@ -3,6 +3,12 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1-rc.7] — 未发布（等真实项目验证）
+
+### 秘书模式结构性修复 + 计量边界澄清
+- **委派深度**：bundle patch 给 `tool-subagent` 显式设 `maxDepth: 2`。dsh-subagent **服务层默认是 1**（工具层的 3 不生效，会被服务默认覆盖），导致 `session→foreman→worker` 三层链物理跑不通（实测报错 `subagent depth 2 exceeds maxDepth 1`）。放开后三层拓扑成立。
+- **计量边界**：`list_agents` schema 是闭集，模型读不到子代理 token；`worker`/`reviewer` 两列改为「见面板」，**模型不估算不编造**（源码实证：tokenUsage 只进浏览器 UI）。
+
 ## [0.6.1-rc.6] — 未发布（等真实项目验证）
 
 ### 上下文工程调研结论（docs/context-research.md）
