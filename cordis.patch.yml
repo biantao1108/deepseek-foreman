@@ -1,3 +1,12 @@
+# 秘书模式必需：dsh-subagent 服务的 maxDepth 默认是 1（框架私有 volatile，
+# 只有 loader 能写、触发器是配置文件变化）。本条目按 id 覆盖 dsh-base 的
+# `id: subagent` 挂载，把深度抬到 2——session → foreman → worker 三层委派才成立。
+# 保存即热推，不用重启（cordis-plugin-loader 的 updateVolatile 监听配置源）。
+- id: subagent
+  name: '@deepseek-ai/dsh-subagent'
+  config:
+    maxDepth: 2
+
 # deepseek-foreman bundle patch — 安装本包即挂载 pick_route 工具。
 # 关键：bundle 层新增插件行必须包在 insert: 下；裸条目是按 id 覆盖已有行，匹配不到会静默失效。
 # 用户 profile 的 cordis.patch.yml 里同 id 条目可整体覆盖本行的 config（roles 或 rolesFile 都行）。
@@ -13,6 +22,11 @@
       # rolesFile: ~/.dsh/foreman.roles.yml
       #
       # 仍然兼容老接法：也可以直接在这里写 roles: [...]，非空时优先，rolesFile 被忽略。
+  # 秘书模式必需：session → foreman → worker 是三层委派。
+  # dsh-subagent 服务层 maxDepth 默认 1（工具层的 3 不生效，会被服务默认覆盖），
+  # 不放开的话 foreman 收不到「depth 2 exceeds maxDepth 1」，整条三层链断在这里。
+  # 顶层会话=depth 0、foreman=1、worker=2 → 设 2 刚好够；不需要多层可以改回 1。
+  # 改完需关开插件或重启 app 才生效（手改文件不通知运行中的 Host）。
   # 审查派单用 subagent_readonly：经这个实例派出的子会话只有读工具（read/grep/glob），
   # 写工具从提示里消失、执行也会被拒——只读审查从「提示词自觉」变成运行时强制。
   # toolFilter.deny 是为了堵委派绕过：实测委派工具（subagent 等）不会被 allow 名单滤掉，

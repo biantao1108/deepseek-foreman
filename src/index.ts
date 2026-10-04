@@ -48,10 +48,17 @@ export interface RoleRoute {
 export interface Config {
   /** Inline role table. Non-empty wins over `rolesFile`, for callers that configure in cordis. */
   roles: RoleRoute[]
-  /** External role file; a leading `~/` expands to the home directory. Empty means `<home>/.dsh/foreman.roles.yml`. */
+  /** External role file; a `~/` prefix expands to the home directory. Empty means `<home>/.dsh/foreman.roles.yml`. */
   rolesFile: string
   /** Install the packaged skill into `<home>/.dsh/skills` when the plugin loads. Default true. */
   installSkill: boolean
+  /**
+   * Delegation depth this plugin asks the host for at startup. dsh's subagent service
+   * defaults to 1, which makes the three-stage flow (session → foreman → worker) impossible:
+   * the foreman sits at depth 1 and cannot start a worker at depth 2. Default 2.
+   * Set 1 to opt out; 0 disables delegation entirely.
+   */
+  delegationDepth: number
 }
 
 /** Schema of one role entry, shared by the inline config and the external file. */
@@ -75,6 +82,7 @@ export const Config: z<Config> = z.object({
   roles: z.array(ROLE_SCHEMA).default([]),
   rolesFile: z.string().default(''),
   installSkill: z.boolean().default(true),
+  delegationDepth: z.number().min(0).max(8).default(2),
 })
 
 /** Schema of the external role file: the same role entries under a `roles:` key. */
@@ -115,6 +123,8 @@ interface RolesFileReport {
 interface SetupReport {
   rolesFile: RolesFileReport
   skill: string
+  /** What happened to the host delegation depth at load: raised, already N, or why not. */
+  delegation: string
   allowlist: {
     /** `not-configured`: every readable profile lacks an `allowedModels` block — no whitelist to enforce yet. */
     status: 'ok' | 'unknown' | 'not-configured'
@@ -233,6 +243,7 @@ const SETUP_SCHEMA = {
         },
       },
     },
+    delegation: { type: 'string', required: true },
     hints: { type: 'array', required: true, items: { type: 'string' } },
   },
 } as const
@@ -261,6 +272,9 @@ const COST_SCHEMA = {
           totalTokens: { type: 'integer', required: true },
           inputTokens: { type: 'integer', required: true },
           outputTokens: { type: 'integer', required: true },
+          cacheReadTokens: { type: 'integer', required: true },
+          cacheWriteTokens: { type: 'integer', required: true },
+          model: { type: 'string' },
         },
       },
     },
@@ -367,6 +381,58 @@ function validateTable(data: unknown): RoleRoute[] {
 
 /** Register the role-to-route adjudication tool. */
 export function apply(ctx: Context, config: Config) {
+  // The subagent service caps delegation depth at 1 by default and the cap is volatile,
+  // i.e. designed to be set at runtime. Raising it here is what makes the three-stage
+  // flow (session → foreman → worker/reviewer) possible at all. The service is usually
+  // not registered yet when a plugin's apply() runs, so wait for it with ctx.inject and
+  // keep the immediate read as a fallback for hosts that expose it synchronously.
+  const requestedDepth = config.delegationDepth ?? 2
+  let delegationDepth = 'not read yet'
+  /**
+   * Read-only depth check. The host subagent service stores maxDepth as a framework-owned
+   * volatile value — only the plugin loader may write it, driven by config-file changes.
+   * Setting it from plugin code is impossible by design (private write symbol), so this
+   * plugin never tries: it reports the current depth and, when too low, tells the user
+   * the one-line config override (`id: subagent` → `config.maxDepth`) that our own
+   * bundle patch already ships.
+   */
+  type SubagentService = { config?: { maxDepth?: number | { get(): number } } }
+  const raiseDepth = (subagents: SubagentService | undefined): void => {
+    if (subagents === undefined) {
+      delegationDepth = 'no subagent service'
+      return
+    }
+    const cap = subagents.config?.maxDepth
+    let current: number | undefined
+    if (typeof cap === 'number') {
+      current = cap
+    } else if (typeof cap?.get === 'function') {
+      // A throwing cap getter degrades to the 'cannot read maxDepth' branch below — one
+      // broken read must not take down the whole tool call.
+      try { current = cap.get() } catch { current = undefined }
+    }
+    if (current === undefined) {
+      delegationDepth = 'cannot read maxDepth'
+      return
+    }
+    delegationDepth = current >= requestedDepth
+      ? `already ${current}`
+      : `maxDepth ${current} < ${requestedDepth} — add "- id: subagent / config.maxDepth: ${requestedDepth}" to cordis.patch.yml (hot-reloaded by the loader)`
+  }
+  /**
+   * Re-check on tool use. The subagent service is registered after this plugin loads, so
+   * the first pick_route call is the reliable moment to read the effective depth.
+   */
+  const ctxGet = (ctx as unknown as { get?(name: string): unknown }).get?.bind(ctx)
+  if (ctxGet !== undefined) raiseDepth(ctxGet('subagents') as SubagentService | undefined)
+  const ensureDepth = (): void => {
+    if (delegationDepth.startsWith('already') || delegationDepth.startsWith('maxDepth')) return
+    if (ctxGet === undefined) return
+    const service = ctxGet('subagents') as SubagentService | undefined
+    if (service === undefined) return // keep whatever the earlier attempt reported
+    raiseDepth(service)
+  }
+
   const inlineRoles = config.roles ?? []
   const inlineMode = inlineRoles.length > 0
   const configured = config.rolesFile ?? ''
@@ -641,6 +707,7 @@ export function apply(ctx: Context, config: Config) {
         unmatchedRoles,
         roleMatches,
       },
+      delegation: delegationDepth,
       hints,
     }
   }
@@ -651,19 +718,20 @@ export function apply(ctx: Context, config: Config) {
       + 'Call before every ticket dispatch and pass the returned provider/model/reasoning_effort to the '
       + 'subagent tool; do not choose a model yourself. A refused route must not be worked around.',
     parameters: {
-      role: { type: 'string', description: 'Role key from the table, e.g. lead, daily-code, review, copywriting, chores.' },
+      role: { type: 'string', description: 'Role key from the table, e.g. foreman, daily-code, review, copywriting, chores.' },
       needs_vision: { type: 'boolean', description: 'The work reads images or screenshots.' },
       needs_long_output: { type: 'boolean', description: 'The work must produce a large single output (whole document, big file).' },
       review_for: { type: 'string', description: 'When this dispatch is a code review, name the role that wrote the code. Same-vendor reviewers are refused: correlated models make correlated mistakes.' },
       accept_check: { type: 'string', description: 'R5 mechanical acceptance: pass an absolute receipt path (the receipt must contain a 「指纹」 section with HEAD sha and per-check status). Verifies the receipt matches the current git HEAD and every acceptance command passed. Returns acceptCheck instead of a route.' },
       project_root: { type: 'string', description: 'Git working directory for accept_check (defaults to the repo containing the receipt).' },
-      cost_session: { type: 'string', description: "Token metering: pass a session id to read that session real token usage, or \"recent\" to list the metered sessions newest-first. Returns cost instead of a route - use it to fill cost ledgers with measured numbers, never estimates." },
+      cost_session: { type: 'string', description: "Token metering: pass a session id to read that session real token usage, or \"recent\" to list the metered sessions sorted by total tokens, highest first. Returns cost instead of a route - use it to fill cost ledgers with measured numbers, never estimates." },
     },
     output: {
       schema: DECISION_SCHEMA,
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
     },
     async execute(args) {
+      ensureDepth()
       refresh()
       // Cost metering is a mode switch too.
       if (args.cost_session !== undefined) {
@@ -713,50 +781,152 @@ export function apply(ctx: Context, config: Config) {
   }))
 }
 
+/**
+ * tokenUsage wire view — the four flat buckets exactly as dsh 0.2.0-rc.2 wires them
+ * (`dsh-token-meter` usage-projection `wire.view` returns the folded buckets). There is
+ * no nested layer below `values.tokenUsage` and the input bucket is `uncachedInputTokens`.
+ */
+type UsageBuckets = {
+  uncachedInputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+}
+
+/**
+ * Model label for a recent row, read from the session event log: the last `model/selection`
+ * event wins (its `data` is a provider/model pair); with none, the first `request/header`
+ * `config.provider/model`; with neither the field is omitted — never invented. Only the
+ * events this session owns are scanned — a fork's inherited prefix carries the parent's model.
+ */
+function readSessionModel(session: unknown): string | undefined {
+  const log = (session as { log?: unknown }).log
+  if (!Array.isArray(log)) return undefined
+  // The first `inheritedEventCount` events are the fork parent's history (dsh-session
+  // Session field doc — events inherited from this Session's fork parent;
+  // ownEvents() starts at that offset), so starting there stops us from reporting the
+  // parent's model as this sub-session's model.
+  const inherited = (session as { inheritedEventCount?: unknown }).inheritedEventCount
+  // A non-integer or absurd count would index nowhere (log[1.5] is undefined, and the
+  // resulting throw would let the recent path's per-session catch swallow the whole row),
+  // so truncate and clamp to a real integer offset.
+  const start = typeof inherited === 'number' && Number.isFinite(inherited) && inherited > 0
+    ? Math.min(Math.trunc(inherited), log.length)
+    : 0
+  let selection: string | undefined
+  let header: string | undefined
+  for (let i = start; i < log.length; i++) {
+    const event = log[i] as {
+      type?: unknown
+      data?: { provider?: unknown, model?: unknown, header?: { config?: { provider?: unknown, model?: unknown } } }
+    }
+    const data = event.data
+    if (event.type === 'model/selection' && typeof data?.provider === 'string' && typeof data?.model === 'string') {
+      selection = `${data.provider}/${data.model}`
+    } else if (event.type === 'request/header' && header === undefined
+      && typeof data?.header?.config?.provider === 'string' && typeof data?.header?.config?.model === 'string') {
+      header = `${data.header.config.provider}/${data.header.config.model}`
+    }
+  }
+  return selection ?? header
+}
+
 /** Read real token usage for one session from the dsh token-meter projection (no estimates). */
 function readCost(ctx: Context, sessionId: string | undefined): CostMeter {
   const sessions = (ctx as unknown as { get(name: string): { get(id: string): unknown, current?: () => unknown, list?: unknown } | undefined }).get('sessions')
   const projections = (ctx as unknown as { get(name: string): { snapshot(session: unknown): { values: Record<string, unknown> } } | undefined }).get('sessionProjections')
-  if (projections === undefined || sessions === undefined) {
-    return { session: sessionId ?? 'current', found: false, detail: 'session or tokenMeter projection unavailable in this deployment' }
+  // Two separate causes, reported separately: naming the service that is actually missing
+  // is the difference between a useful failure and a shrug.
+  if (sessions === undefined) {
+    return { session: sessionId ?? 'current', found: false, detail: 'sessions service unavailable in this deployment' }
+  }
+  if (projections === undefined) {
+    return { session: sessionId ?? 'current', found: false, detail: 'sessionProjections service unavailable in this deployment' }
   }
   // `recent`: walk every known session and keep the ones carrying real totals.
   // This is the secretary-facing path — a subagent call returns no session id to the
   // model, so "which subagent just ran" is answered by reading the newest usage.
   if (sessionId === 'recent') {
-    const all = (sessions as unknown as { list(): unknown[] }).list()
+    const list = sessions.list
+    if (typeof list !== 'function') {
+      // Same shape as the other failure paths: report it instead of throwing.
+      return { session: 'recent', found: false, detail: 'sessions.list unavailable in this deployment' }
+    }
+    let all: unknown
+    try {
+      all = (list as (this: unknown) => unknown).call(sessions)
+    } catch {
+      return { session: 'recent', found: false, detail: 'sessions.list threw in this deployment' }
+    }
+    if (!Array.isArray(all)) {
+      return { session: 'recent', found: false, detail: 'sessions.list returned a non-array in this deployment' }
+    }
     const rows: CostRow[] = []
+    let failed = 0
     for (const candidate of all) {
       try {
-        const totals = (projections.snapshot(candidate).values as Record<string, { totals?: Record<string, number> } | undefined>).tokenUsage?.totals
-        if (totals === undefined) continue
-        const total = Object.values(totals).reduce((a, b) => a + (b ?? 0), 0)
+        // Read the wire view itself: snapshot().values.tokenUsage already IS the four
+        // buckets (uncachedInputTokens/outputTokens/cacheReadTokens/cacheWriteTokens).
+        // Reading it as raw state is how this meter read zeros in live dsh.
+        const usage = (projections.snapshot(candidate).values as Record<string, UsageBuckets | undefined>).tokenUsage
+        if (usage === undefined) continue
+        const total = Object.values(usage).reduce((a, b) => a + (b ?? 0), 0)
         if (total === 0) continue
-        rows.push({ session: (candidate as { id: string }).id, totalTokens: total, inputTokens: totals.inputTokens ?? 0, outputTokens: totals.outputTokens ?? 0 })
-      } catch { /* one bad session must not sink the scan */ }
+        const model = readSessionModel(candidate)
+        rows.push({
+          session: (candidate as { id: string }).id,
+          totalTokens: total,
+          inputTokens: usage.uncachedInputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          cacheReadTokens: usage.cacheReadTokens ?? 0,
+          cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+          ...(model === undefined ? {} : { model }),
+        })
+      } catch { /* one bad session must not sink the scan */ failed++ }
     }
     rows.sort((a, b) => b.totalTokens - a.totalTokens)
-    return { session: 'recent', found: rows.length > 0, detail: `${rows.length} session(s) with metered usage`, recent: rows.slice(0, 20) }
+    // Zero rows has two very different causes — nothing metered, or every read failed —
+    // so say which: a dead projection must not read as a quiet zero. With rows present
+    // the count is already the story; no suffix.
+    const detail = `${rows.length} session(s) with metered usage${rows.length === 0 && failed > 0 ? ` (${failed} failed to read)` : ''}`
+    return { session: 'recent', found: rows.length > 0, detail, recent: rows.slice(0, 20) }
   }
-  const target = sessions.get(sessionId === undefined || sessionId === '' ? '' : sessionId)
+  const get = (sessions as { get?: unknown }).get
+  if (typeof get !== 'function') {
+    return { session: sessionId ?? 'current', found: false, detail: 'sessions.get unavailable in this deployment' }
+  }
+  let target: unknown
+  try {
+    target = (get as (this: unknown, id: string) => unknown).call(sessions, sessionId === undefined || sessionId === '' ? '' : sessionId)
+  } catch {
+    return { session: sessionId ?? 'current', found: false, detail: 'sessions.get threw in this deployment' }
+  }
   if (target === undefined) {
     return { session: sessionId ?? 'current', found: false, detail: 'no such session id; pass "recent" to list metered sessions' }
   }
   try {
-    const values = projections.snapshot(target).values as Record<string, { totals?: Record<string, number> } | undefined>
-    const usage = values.tokenUsage
-    if (usage?.totals === undefined) {
-      return { session: sessionId ?? 'current', found: false, detail: 'tokenUsage projection has no totals yet' }
+    // Same wire view as the recent path: values.tokenUsage is the four flat buckets, and
+    // the input bucket is uncachedInputTokens — dsh wires the folded buckets straight out,
+    // so reading a raw-state shape here always answered zero in live dsh.
+    const usage = (projections.snapshot(target).values as Record<string, UsageBuckets | undefined>).tokenUsage
+    if (usage === undefined) {
+      // Cause 1: the projection was never registered — this deployment has no token-meter.
+      return { session: sessionId ?? 'current', found: false, detail: 'tokenUsage projection not registered in this deployment' }
     }
-    const t = usage.totals as Record<string, number>
+    const total = Object.values(usage).reduce((a, b) => a + (b ?? 0), 0)
+    if (total === 0) {
+      // Cause 2: the wire view exists but nothing has been metered yet.
+      return { session: sessionId ?? 'current', found: false, detail: 'tokenUsage wire view present but all buckets are zero' }
+    }
     return {
       session: sessionId ?? 'current',
       found: true,
       totals: {
-        inputTokens: t.inputTokens ?? 0,
-        outputTokens: t.outputTokens ?? 0,
-        cacheReadTokens: t.cacheReadTokens ?? 0,
-        cacheWriteTokens: t.cacheWriteTokens ?? 0,
+        // Our public field name stays `inputTokens`; the wire key is uncachedInputTokens.
+        inputTokens: usage.uncachedInputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        cacheReadTokens: usage.cacheReadTokens ?? 0,
+        cacheWriteTokens: usage.cacheWriteTokens ?? 0,
       },
     }
   } catch (error) {
@@ -770,6 +940,10 @@ export interface CostRow {
   totalTokens: number
   inputTokens: number
   outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  /** `provider/model` from the session event log; omitted when the log carries no selection. */
+  model?: string
 }
 
 /** Cost meter verdict as the model sees it. */

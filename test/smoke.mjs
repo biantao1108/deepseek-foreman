@@ -14,7 +14,7 @@ process.env.HOME = mkdtempSync(join(tmpdir(), 'foreman-sandbox-'))
 let tool
 apply({ tools: { register: (t) => { tool = t } } }, {
   roles: [
-    route('lead', 'vendor-a', 'provider-a', 'model-a'),
+    route('foreman', 'vendor-a', 'provider-a', 'model-a'),
     route('ui-design', 'vendor-a', 'provider-a', 'model-a', { vision: true }),
     route('daily-code', 'vendor-b', 'provider-b', 'model-b', { vision: true }),
     route('daily-code-offpeak', 'vendor-c', 'provider-c', 'model-c', {
@@ -121,15 +121,15 @@ const save = (file, text, seconds) => {
   utimesSync(file, seconds, seconds) // 显式 mtime：热更新判定不靠写文件的时间精度
 }
 const exampleYml = readFileSync(new URL('../roles.example.yml', import.meta.url), 'utf8')
-const tableA = ['roles:', '  - role: lead', '    vendor: vendor-a', '    provider: provider-a',
+const tableA = ['roles:', '  - role: foreman', '    vendor: vendor-a', '    provider: provider-a',
   '    model: model-a', '  - role: review', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
 const tableB = ['roles:', '  - role: chores', '    vendor: vendor-a', '    provider: provider-a',
   '    model: model-a', '  - role: review', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
-const tableBroken = 'roles:\n  - role: lead\n   vendor: vendor-a\n'
-const tableDup = ['roles:', '  - role: lead', '    vendor: vendor-a', '    provider: provider-a',
-  '    model: model-a', '  - role: lead', '    vendor: vendor-b', '    provider: provider-b',
+const tableBroken = 'roles:\n  - role: foreman\n   vendor: vendor-a\n'
+const tableDup = ['roles:', '  - role: foreman', '    vendor: vendor-a', '    provider: provider-a',
+  '    model: model-a', '  - role: foreman', '    vendor: vendor-b', '    provider: provider-b',
   '    model: model-b', ''].join('\n')
 const inlineOnly = [route('only', 'vendor-a', 'provider-a', 'model-a')]
 
@@ -142,7 +142,7 @@ check('config.roles 非空 → 不读也不铺 rolesFile', existsSync(ghost), fa
 const ignored = join(dir, 'ignored.yml')
 save(ignored, tableA, 1_700_000_000)
 const inlineTool2 = mount({ roles: inlineOnly, rolesFile: ignored })
-check('config.roles 非空 → 文件里的角色不参与裁决', (await inlineTool2.execute({ role: 'lead' }, {})).ok, false)
+check('config.roles 非空 → 文件里的角色不参与裁决', (await inlineTool2.execute({ role: 'foreman' }, {})).ok, false)
 const thrown = (fn) => { try { fn(); return '没抛错' } catch (error) { return error.message } }
 check('config 直传角色重名仍然当场抛错（老行为保留）',
   thrown(() => mount({ roles: [route('dup', 'vendor-a', 'provider-a', 'model-a'), route('dup', 'vendor-b', 'provider-b', 'model-b')] })),
@@ -153,7 +153,7 @@ const autoFile = join(dir, 'nested', 'deep', 'foreman.roles.yml')
 const bootTool = mount({ roles: [], rolesFile: autoFile })
 check('rolesFile 不存在 → 自动铺出模板（含父目录）', existsSync(autoFile), true)
 check('铺出的模板与包内 roles.example.yml 一致', readFileSync(autoFile, 'utf8') === exampleYml, true)
-const boot = await bootTool.execute({ role: 'lead' })
+const boot = await bootTool.execute({ role: 'foreman' })
 check('未配置态：指定角色也 ok:false', boot.ok, false)
 check('未配置态：reason 带文件位置与下一步', boot.reason.includes(autoFile) && boot.reason.includes('按注释填好 provider/model，保存即生效'), true)
 const bootList = await bootTool.execute({})
@@ -176,17 +176,17 @@ try {
 const liveFile = join(dir, 'live.yml')
 const liveTool = mount({ roles: [], rolesFile: liveFile })
 save(liveFile, tableA, 1_700_000_000)
-check('写入合法 rolesFile → 下次调用即生效（热更新）', (await liveTool.execute({ role: 'lead' })).ok, true)
+check('写入合法 rolesFile → 下次调用即生效（热更新）', (await liveTool.execute({ role: 'foreman' })).ok, true)
 check('热更新后列出新表的 2 个角色', (await liveTool.execute({})).alternatives.length, 2)
 save(liveFile, tableBroken, 1_700_000_100)
 const broken = await liveTool.execute({})
 check('改坏 rolesFile → 本次调用 ok:false', broken.ok, false)
 check('改坏后 reason 带 YAML 解析错误摘要', broken.reason.includes('YAML 解析失败') && broken.reason.includes('line 3'), true)
 check('改坏后保留上一份好表（alternatives 仍 2 条）', (await liveTool.execute({})).alternatives.length, 2)
-check('改坏期间指定角色也仍被拒', (await liveTool.execute({ role: 'lead' })).ok, false)
+check('改坏期间指定角色也仍被拒', (await liveTool.execute({ role: 'foreman' })).ok, false)
 save(liveFile, tableB, 1_700_000_200)
 check('文件修好后自动恢复', (await liveTool.execute({ role: 'chores' })).ok, true)
-check('恢复后用的是新表（旧表 lead 已不存在）', (await liveTool.execute({ role: 'lead' })).ok, false)
+check('恢复后用的是新表（旧表 foreman 已不存在）', (await liveTool.execute({ role: 'foreman' })).ok, false)
 
 // e. 文件里的重名与 schema 类型错误都走校验失败路径
 const dupFile = join(dir, 'dup.yml')
@@ -217,7 +217,7 @@ try {
   const tildePath = join(tildeHome, '.dsh', 'foreman.roles.yml')
   check('rolesFile 写 ~/ → 插件把模板落到 <home>/.dsh/foreman.roles.yml', existsSync(tildePath), true)
   save(tildePath, tableA, 1_700_000_000)
-  check('~/ 展开后的那份文件被真正读成角色表', (await tildeTool.execute({ role: 'lead' })).ok, true)
+  check('~/ 展开后的那份文件被真正读成角色表', (await tildeTool.execute({ role: 'foreman' })).ok, true)
 } finally {
   if (homeBefore === undefined) delete process.env.HOME
   else process.env.HOME = homeBefore
@@ -227,10 +227,10 @@ try {
 const toctouFile = join(dir, 'toctou.yml')
 const toctouTool = mount({ roles: [], rolesFile: toctouFile })
 save(toctouFile, tableA, 1_700_000_000)
-check('TOCTOU 回归：先读到表 A（lead 可用）', (await toctouTool.execute({ role: 'lead' })).ok, true)
+check('TOCTOU 回归：先读到表 A（foreman 可用）', (await toctouTool.execute({ role: 'foreman' })).ok, true)
 save(toctouFile, tableB, 1_700_000_050)
 check('TOCTOU 回归：再改一次读到的是表 B（chores 可用）', (await toctouTool.execute({ role: 'chores' })).ok, true)
-check('TOCTOU 回归：旧表 A 的角色随新表失效（lead 不在表 B）', (await toctouTool.execute({ role: 'lead' })).ok, false)
+check('TOCTOU 回归：旧表 A 的角色随新表失效（foreman 不在表 B）', (await toctouTool.execute({ role: 'foreman' })).ok, false)
 
 // h. 运行中文件被删：当次调用即重铺模板，不带上一份文件的陈旧报错
 const goneFile = join(dir, 'gone.yml')
@@ -248,9 +248,9 @@ check('删文件后当次调用是干净的「未配置」态（无陈旧 YAML �
 const goneLive = join(dir, 'gone-live.yml')
 save(goneLive, tableA, 1_700_000_000)
 const goneLiveTool = mount({ roles: [], rolesFile: goneLive })
-check('删文件前基线：表 A 在内存里可用', (await goneLiveTool.execute({ role: 'lead' })).ok, true)
+check('删文件前基线：表 A 在内存里可用', (await goneLiveTool.execute({ role: 'foreman' })).ok, true)
 rmSync(goneLive)
-const goneLiveAfter = await goneLiveTool.execute({ role: 'lead' })
+const goneLiveAfter = await goneLiveTool.execute({ role: 'foreman' })
 check('有旧表时删文件 → 重铺模板 + 空表保旧表，不带陈旧错',
   existsSync(goneLive) && goneLiveAfter.ok === false
   && goneLiveAfter.reason.includes('文件里是空表') && !goneLiveAfter.reason.includes('配置文件读取失败'), true)
@@ -274,9 +274,9 @@ check('COPYFILE_EXCL：那次冲突没有覆盖出任何文件', existsSync(link
 const emptyFile = join(dir, 'empty.yml')
 save(emptyFile, tableA, 1_700_000_000)
 const emptyTool = mount({ roles: [], rolesFile: emptyFile })
-check('空表前基线：表 A 可用', (await emptyTool.execute({ role: 'lead' })).ok, true)
+check('空表前基线：表 A 可用', (await emptyTool.execute({ role: 'foreman' })).ok, true)
 save(emptyFile, 'roles: []\n', 1_700_000_100)
-const emptied = await emptyTool.execute({ role: 'lead' })
+const emptied = await emptyTool.execute({ role: 'foreman' })
 check('文件改成合法空表 → 本次调用 ok:false', emptied.ok, false)
 check('空表保旧表：alternatives 仍是表 A 的 2 条', emptied.alternatives.length, 2)
 check('空表 reason 说明保留了旧表',
@@ -315,9 +315,10 @@ check('toolFilter.deny 不含 subagent（不存在的名字会校验失败）',
     && !readonlyEntry.config.toolFilter.deny.includes('subagent'), true)
 check('config.modelSelectionSettings 不存在（bundle 层 standing 挂载开它会 throw）',
   readonlyEntry?.config?.modelSelectionSettings, undefined)
-check('patch 里所有新增条目都在 insert: 下（顶层无裸 - id: 条目）',
-  patchRows.length > 0 && patchRows.every((row) => row !== null && typeof row === 'object'
-    && !('id' in row) && Array.isArray(row.insert)), true)
+check('patch 顶层仅允许 subagent 深度覆盖条目', patchRows.filter((e) => !e.insert).map((e) => e.id).join(','), 'subagent')
+check('patch 里 foreman 与 readonly 实例都在 insert: 下', insertEntries.map((e) => e.id).join(','), 'foreman,tool-subagent-readonly')
+check('patch 结构：insert 数组存在且条目齐全', patchRows.filter((row) => Array.isArray(row?.insert)).length > 0
+    && patchRows.filter((row) => !row.insert).every((row) => row?.id === 'subagent'), true)
 
 // ── T202：skill 自动安装 + pick_route 无 role 时返回 setup（doctor 自检） ────────────
 const skillSource = fileURLToPath(new URL('../skill/deepseek-foreman', import.meta.url))
@@ -341,7 +342,7 @@ const skillSetup = (await skillTool.execute({})).setup
 check('T202 无 skills 目录 → 自动装为软链', skillSetup.skill, 'linked')
 check('T202 软链指向包内 skill/deepseek-foreman', readlinkSync(skillDir(skillHome)), skillSource)
 check('T202 软链后 SKILL.md 可读', readFileSync(join(skillDir(skillHome), 'SKILL.md'), 'utf8').includes('deepseek-foreman'), true)
-check('T202 setup 四个键齐全', Object.keys(skillSetup).join(','), 'rolesFile,skill,allowlist,hints')
+check('T202 setup 五个键齐全', Object.keys(skillSetup).join(','), 'rolesFile,skill,allowlist,delegation,hints')
 check('T202 直传 roles → rolesFile.status=ok 且注明未使用',
   skillSetup.rolesFile.status === 'ok' && skillSetup.rolesFile.detail.includes('直传'), true)
 
@@ -411,7 +412,7 @@ writeFileSync(join(docHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'), 
 mkdirSync(join(docHome, '.dsh', 'profiles', 'broken'), { recursive: true })
 writeFileSync(join(docHome, '.dsh', 'profiles', 'broken', 'cordis.patch.yml'), 'allowedModels: [oops\n')
 const docTool = withHome(docHome, () => mount({ roles: [
-  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('foreman', 'vendor-a', 'provider-a', 'model-a'),
   route('rogue', 'vendor-b', 'provider-x', 'model-y'),
 ] }))
 // 白名单扫描发生在 execute 那一刻 → 临时 HOME 必须把调用也包住
@@ -420,7 +421,7 @@ check('T202 白名单扫描到 provider-a/model-a',
   docSetup.allowlist.routes.some((p) => p.provider === 'provider-a' && p.model === 'model-a'), true)
 check('T202 白名单对账 status=ok', docSetup.allowlist.status, 'ok')
 check('T202 白名单外的角色被标出', docSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
-check('T202 白名单内的 lead 不被误标', docSetup.allowlist.unmatchedRoles.some((m) => m.role === 'lead'), false)
+check('T202 白名单内的 foreman 不被误标', docSetup.allowlist.unmatchedRoles.some((m) => m.role === 'foreman'), false)
 check('T202 读不到的 profile patch 标 unknown', docSetup.allowlist.profiles.filter((p) => p.status === 'unknown').length, 1)
 check('T202 hints 点名 rogue 并指路「加白名单后开新会话」',
   docSetup.hints.some((h) => h.includes('角色 rogue') && h.includes('加进白名单后开新会话')), true)
@@ -454,7 +455,7 @@ writeFileSync(join(scopedHome, '.dsh', 'profiles', 'desktop', 'cordis.patch.yml'
   '',
 ].join('\n'))
 const scopedTool = withHome(scopedHome, () => mount({ roles: [
-  route('lead', 'vendor-a', 'provider-a', 'model-a'),
+  route('foreman', 'vendor-a', 'provider-a', 'model-a'),
   route('rogue', 'vendor-b', 'provider-x', 'model-y'),
 ] }))
 const scopedSetup = (await withHome(scopedHome, () => scopedTool.execute({}))).setup
@@ -462,8 +463,8 @@ check('T202b 只收集 name 含 model-selection 条目下的 allowedModels',
   scopedSetup.allowlist.routes.some((p) => p.provider === 'provider-x' && p.model === 'model-y'), false)
 check('T202b 只在别的插件 allowedModels 里的角色仍被标为 unmatched',
   scopedSetup.allowlist.unmatchedRoles.map((m) => m.role).join(','), 'rogue')
-check('T202b roleMatches 注明 lead 匹配到 desktop',
-  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'lead')?.matchedIn), '["desktop"]')
+check('T202b roleMatches 注明 foreman 匹配到 desktop',
+  JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'foreman')?.matchedIn), '["desktop"]')
 check('T202b roleMatches 注明 rogue 没匹配到任何 profile',
   JSON.stringify(scopedSetup.allowlist.roleMatches.find((m) => m.role === 'rogue')?.matchedIn), '[]')
 
@@ -491,7 +492,7 @@ const okTool = mount({ roles: [], rolesFile: okFile })
 const okSetup = (await okTool.execute({})).setup
 check('T202 角色表可读 → rolesFile.status=ok、roles=2',
   okSetup.rolesFile.status === 'ok' && okSetup.rolesFile.roles === 2, true)
-check('T202 带 role 的调用不返回 setup', 'setup' in (await okTool.execute({ role: 'lead' })), false)
+check('T202 带 role 的调用不返回 setup', 'setup' in (await okTool.execute({ role: 'foreman' })), false)
 const newFile = join(dir, 'doctor-new', 'foreman.roles.yml')
 const newSetup = (await mount({ roles: [], rolesFile: newFile }).execute({})).setup
 check('T202 角色表还没铺出 → status=unconfigured', newSetup.rolesFile.status, 'unconfigured')
@@ -525,37 +526,253 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
 }
 
 // ── token 计量（cost 模式）──
+// mock 的形状必须是 dsh 真实 wire view：values.tokenUsage 直接是四桶（uncachedInputTokens…），
+// 没有中间层——照被测代码的假设写 mock 就会「测试全绿 live 全灭」。
 {
   const fakeSession = { id: 's1' }
   const fakeCtx = {
     get(name) {
       if (name === 'sessions') return { get: () => fakeSession }
-      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { totals: { inputTokens: 12345, outputTokens: 678, cacheReadTokens: 9, cacheWriteTokens: 0 } } } }) }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 12345, outputTokens: 678, cacheReadTokens: 9, cacheWriteTokens: 0 } } }) }
       return undefined
     },
   }
   const mk = (ctx2) => { let t; apply({ tools: { register: (x) => { t = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-none.yml' }); return t }
   const r = await mk(fakeCtx).execute({ cost_session: 's1' }, {})
   check('cost 模式读到真实 token（input 12345）', r.cost.found && r.cost.totals.inputTokens, 12345)
+  check('cost 模式 cache 桶读出真数（cacheRead 9）', r.cost.totals.cacheReadTokens, 9)
   const r2 = await mk({ get: () => undefined }).execute({ cost_session: 's1' }, {})
   check('cost 模式服务缺失 → found=false 不编数', r2.cost.found, false)
+  // T305b#4：found:false 的两种真因分开如实报
+  const noProjection = await mk({ get(name) {
+    if (name === 'sessions') return { get: () => ({ id: 'no-meter' }) }
+    if (name === 'sessionProjections') return { snapshot: () => ({ values: {} }) }
+    return undefined
+  } }).execute({ cost_session: 'no-meter' }, {})
+  check('cost 投影未注册 → found:false 报「not registered」', noProjection.cost.found === false && noProjection.cost.detail,
+    'tokenUsage projection not registered in this deployment')
+  const allZero = await mk({ get(name) {
+    if (name === 'sessions') return { get: () => ({ id: 'zero' }) }
+    if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } }) }
+    return undefined
+  } }).execute({ cost_session: 'zero' }, {})
+  check('cost 桶全零 → found:false 报「all buckets are zero」', allZero.cost.found === false && allZero.cost.detail,
+    'tokenUsage wire view present but all buckets are zero')
+  // T305c#3：两个服务缺失分开报因——detail 必须点名缺的是哪个
+  const okBuckets = () => ({ values: { tokenUsage: { uncachedInputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } })
+  const noSessions = await mk({ get: (name) => (name === 'sessionProjections' ? { snapshot: okBuckets } : undefined) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 无 sessions 服务 → detail 点名 sessions', noSessions.cost.found === false && noSessions.cost.detail,
+    'sessions service unavailable in this deployment')
+  const noProjections = await mk({ get: (name) => (name === 'sessions' ? { get: () => ({ id: 's1' }) } : undefined) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 无 sessionProjections 服务 → detail 点名投影', noProjections.cost.found === false && noProjections.cost.detail,
+    'sessionProjections service unavailable in this deployment')
+  // T305c#4：单会话路径的 sessions.get 同样防御（非函数 / 抛错）
+  const noGet = await mk({ get: (name) => (name === 'sessions' ? { list: () => [] } : { snapshot: okBuckets }) })
+    .execute({ cost_session: 's1' }, {})
+  const throwGet = await mk({ get: (name) => (name === 'sessions' ? { get() { throw new Error('get boom') } } : { snapshot: okBuckets }) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 单会话 sessions.get 非函数/抛错 → found:false 如实报',
+    noGet.cost.found === false && noGet.cost.detail === 'sessions.get unavailable in this deployment'
+    && throwGet.cost.found === false && throwGet.cost.detail === 'sessions.get threw in this deployment', true)
+  // T305d#1：id 查不到 → 提前 return 的「no such session id」分支；
+  // 顺带盖住 id 归一化三元（'' 与非 '' 两臂都落到同一个 no-such 分支）
+  const noSuchCtx = { get: (name) => (name === 'sessions' ? { get: () => undefined } : { snapshot: okBuckets }) }
+  const noSuch = await mk(noSuchCtx).execute({ cost_session: 'ghost' }, {})
+  const noSuchEmpty = await mk(noSuchCtx).execute({ cost_session: '' }, {})
+  check('cost 单会话 id 查不到（含空 id）→ found:false 锁 no such session 文案',
+    noSuch.cost.found === false && noSuch.cost.detail === 'no such session id; pass "recent" to list metered sessions'
+    && noSuchEmpty.cost.found === false && noSuchEmpty.cost.detail === 'no such session id; pass "recent" to list metered sessions', true)
+  // T305d#2：单会话路径 snapshot 抛错 → catch 分支，detail 是 summarize 后的错误摘要
+  const snapThrow = await mk({ get: (name) => (name === 'sessions' ? { get: () => ({ id: 'boom1' }) } : { snapshot: () => { throw new Error('snapshot boom') } }) })
+    .execute({ cost_session: 'boom1' }, {})
+  check('cost 单会话 snapshot 抛错 → found:false + summarize 错误摘要', snapThrow.cost.found === false && snapThrow.cost.detail,
+    'snapshot boom')
 }
 
 // ── cost recent 模式（秘书记账）──
 {
-  const s1 = { id: 'old' }, s2 = { id: 'new' }
+  const s1 = { id: 'old' }
+  const s2 = {
+    id: 'new',
+    // 事件日志带一条 model/selection（dsh 形状：data 是 provider/model 对）；
+    // 首条是无关事件类型——覆盖 readSessionModel「两个 if 都不匹配就跳过」的隐式 else
+    log: [
+      { type: 'turn/start', data: {} },
+      { type: 'model/selection', data: { provider: 'provider-f', model: 'model-f' } },
+    ],
+  }
+  // T305b#1：回退路径——日志里没有 model/selection，只有 request/header；
+  // 第二条 header 必须被忽略（只取第一条），覆盖 `header === undefined` 守卫为假的分支
+  const s3 = {
+    id: 'hdr',
+    log: [
+      { type: 'request/header', data: { header: { config: { provider: 'provider-g', model: 'model-g' } } } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-g2', model: 'model-g2' } } } },
+    ],
+  }
+  // T305b#2：fork 继承前 2 条是父会话的 selection/header，本会话自己的事件在继承数之后
+  const s4 = {
+    id: 'fork',
+    inheritedEventCount: 2,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-x', model: 'model-x' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-y', model: 'model-y' } } } },
+      { type: 'model/selection', data: { provider: 'provider-h', model: 'model-h' } },
+    ],
+  }
+  // 同上，但本会话自己没有 selection、只有 header——不跳过继承前缀就会误报父会话模型
+  const s5 = {
+    id: 'fork-hdr',
+    inheritedEventCount: 1,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-x2', model: 'model-x2' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-i', model: 'model-i' } } } },
+    ],
+  }
+  const buckets = (uncachedInputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) =>
+    ({ uncachedInputTokens, outputTokens, cacheReadTokens, cacheWriteTokens })
+  // T305c#2：inheritedEventCount 是 1.5——非整数会让 log[1.5] 取空抛错、整行被 per-session catch 吞掉
+  const s6 = {
+    id: 'frac',
+    inheritedEventCount: 1.5,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-frac-p', model: 'model-frac-p' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-j', model: 'model-j' } } } },
+      // 类型是 model/selection 但 data 不是 provider/model 字符串对——必须跳过，模型仍取上面的 header
+      { type: 'model/selection', data: { provider: 42 } },
+    ],
+  }
+  // T305c#6：这个会话的 snapshot 抛错——只跳过它，其余照常列出
+  const s7 = { id: 'boom' }
+  const usageById = {
+    old: buckets(100, 10, 3, 0),
+    new: buckets(900, 90, 5, 1),
+    hdr: buckets(7, 2, 0, 0),
+    fork: buckets(20, 4, 0, 0),
+    'fork-hdr': buckets(30, 5, 1, 0),
+    frac: buckets(50, 10, 0, 0),
+  }
   const ctx2 = {
     get(name) {
-      if (name === 'sessions') return { get: (id) => (id === 'old' ? s1 : undefined), list: () => [s1, s2] }
-      if (name === 'sessionProjections') return { snapshot: (s) => ({ values: { tokenUsage: { totals: s.id === 'old' ? { inputTokens: 100, outputTokens: 10 } : { inputTokens: 900, outputTokens: 90 } } } }) }
+      if (name === 'sessions') return { get: (id) => (id === 'old' ? s1 : undefined), list: () => [s1, s2, s3, s4, s5, s6, s7] }
+      if (name === 'sessionProjections') return { snapshot: (s) => { if (s.id === 'boom') throw new Error('snapshot boom'); return { values: { tokenUsage: usageById[s.id] } } } }
       return undefined
     },
   }
-  let t3; apply({ tools: { register: (x) => { t3 = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-recent.yml' })
-  const r = await t3.execute({ cost_session: 'recent' }, {})
-  check('cost recent 按 token 倒序列出两个会话', r.cost.recent.length, 2)
+  const toolFor = (ctxX) => { let t; apply({ tools: { register: (x) => { t = x } }, get: ctxX.get }, { roles: [], rolesFile: '/tmp/cost-sweep.yml' }); return t }
+  const r = await toolFor(ctx2).execute({ cost_session: 'recent' }, {})
+  const row = (id) => r.cost.recent.find((x) => x.session === id)
+  check('cost recent 按 token 倒序列出六个会话（抛错的 boom 被跳过）', r.cost.recent.length, 6)
+  check('cost recent 倒序与跳过：boom 不在、顺序为 new…hdr',
+    r.cost.recent.map((x) => x.session).join(','), 'new,old,frac,fork-hdr,fork,hdr')
+  // T305d#3（另一臂）：有结果时不附加失败计数——detail 仍是裸的 N session(s)
+  check('cost recent 有结果时 detail 不附加失败计数', r.cost.detail, '6 session(s) with metered usage')
   check('cost recent 首位是 token 最多的会话', r.cost.recent[0].session, 'new')
-  check('cost recent 算对总数（990）', r.cost.recent[0].totalTokens, 990)
+  check('cost recent 算对总数（996）', r.cost.recent[0].totalTokens, 996)
+  check('cost recent 行带模型名（model/selection）', r.cost.recent[0].model, 'provider-f/model-f')
+  check('cost recent 行带 cache 桶（900/90/5/1）',
+    r.cost.recent[0].inputTokens === 900 && r.cost.recent[0].outputTokens === 90
+    && r.cost.recent[0].cacheReadTokens === 5 && r.cost.recent[0].cacheWriteTokens === 1, true)
+  check('cost recent inputTokens 取 wire 的 uncachedInputTokens', r.cost.recent[0].inputTokens, 900)
+  check('cost recent 无事件日志的行不编模型名', 'model' in r.cost.recent[1], false)
+  // T305b#1：只有 request/header 的行回退出配置里的模型名
+  check('cost recent 回退第一条 request/header 的模型名', row('hdr').model, 'provider-g/model-g')
+  // T305b#2：只看本子会话自己的事件（父会话前缀不参与）
+  check('cost recent fork 行取本会话自己的 selection', row('fork').model, 'provider-h/model-h')
+  check('cost recent fork 行不误报父会话模型（取自己的 header）', row('fork-hdr').model, 'provider-i/model-i')
+  // T305c#2：1.5 截断成整数偏移——行不被吞，模型取 own 事件（不是父会话的 selection）
+  check('cost recent 非整数 inheritedEventCount 仍出行、模型取 own 事件', row('frac').model, 'provider-j/model-j')
+  // T305b#3：sessions 服务没有 list → 如实报因，不抛错
+  const noListCtx = {
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }) }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }
+  const rn = await toolFor(noListCtx).execute({ cost_session: 'recent' }, {})
+  check('cost recent 服务无 list → found:false 不抛错', rn.cost.found === false && rn.cost.detail,
+    'sessions.list unavailable in this deployment')
+  // T305c#1：list 半截防御——调用抛错 / 返回非数组，都不冒穿、如实报因
+  const rThrowList = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }), list: () => { throw new Error('list boom') } }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent list 抛错 → found:false 不冒穿', rThrowList.cost.found === false && rThrowList.cost.detail,
+    'sessions.list threw in this deployment')
+  const rNonArray = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }), list: () => 'not-an-array' }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent list 返回非数组 → found:false 如实报', rNonArray.cost.found === false && rNonArray.cost.detail,
+    'sessions.list returned a non-array in this deployment')
+  // T305c#7：所有会话零用量 → 零结果分支如实 found:false
+  const rZero = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { list: () => [{ id: 'z1' }, { id: 'z2' }] }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(0, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent 全部会话零用量 → found:false + 0 session(s)', rZero.cost.found === false && rZero.cost.detail,
+    '0 session(s) with metered usage')
+  // T305d#3：零结果的另一真因——不是没人计量，是全都读不到（失败计数进 detail）
+  const rAllFail = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { list: () => [{ id: 'f1' }, { id: 'f2' }] }
+      if (name === 'sessionProjections') return { snapshot: () => { throw new Error('read boom') } }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent 全部会话读失败 → 零结果 detail 带失败计数', rAllFail.cost.found === false && rAllFail.cost.detail,
+    '0 session(s) with metered usage (2 failed to read)')
+}
+
+// ── 委派深度（dsh-subagent maxDepth 默认 1，三层链靠它）──
+{
+  const mkCtx = (subagents) => ({ tools: { register: () => {} }, get: (n) => (n === 'subagents' ? subagents : undefined) })
+  let toolD1
+  apply({ tools: { register: (t) => { toolD1 = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: 2 } } : undefined }, { roles: [], rolesFile: '/tmp/d1.yml' })
+  const rD1 = await toolD1.execute({}, {})
+  check('maxDepth 2（patch 已覆盖）→ 报 already 2', rD1.setup.delegation, 'already 2')
+  let toolD1b
+  apply({ tools: { register: (t) => { toolD1b = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: 1 } } : undefined }, { roles: [], rolesFile: '/tmp/d1b.yml' })
+  const rD1b = await toolD1b.execute({}, {})
+  check('maxDepth 1 → 不写代码，给 patch 配置 hint', /add "- id: subagent/.test(rD1b.setup.delegation), true)
+  let tool2
+  apply({ tools: { register: (t) => { tool2 = t } }, get: () => undefined }, { roles: [], rolesFile: '/tmp/d2.yml' })
+  const r = await tool2.execute({}, {})
+  check('无 subagent 服务 → 不抛错且 setup 给出说明', r.setup.delegation, 'no subagent service')
+  apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: 3 } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
+  // T305c#5：cap.get() 抛错 → 按该区段既有风格降级，setup 不炸
+  let toolThrow
+  apply({ tools: { register: (t) => { toolThrow = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: { get() { throw new Error('cap boom') } } } } : undefined },
+    { roles: [], rolesFile: '/tmp/d-throw.yml' })
+  const rThrow = await toolThrow.execute({}, {})
+  check('maxDepth cap.get 抛错 → 不炸、delegation 如实报 cannot read maxDepth', rThrow.setup.delegation, 'cannot read maxDepth')
+}
+
+// ── 委派深度：服务晚注册的场景（inject 不触发，靠工具调用时补设）──
+{
+  let depth = 1
+  let late
+  let tool3
+  const lateSvc = { config: { maxDepth: 2 } }
+  apply({ tools: { register: (t) => { tool3 = t } }, get: (n) => (n === 'subagents' && late ? lateSvc : undefined) },
+    { roles: [], rolesFile: '/tmp/depth-late.yml' })
+  const before = await tool3.execute({}, {})
+  check('服务未注册时如实报 no subagent service', before.setup.delegation, 'no subagent service')
+  late = true
+  const after = await tool3.execute({}, {})
+  check('服务晚注册 → 工具调用时读出深度', after.setup.delegation, 'already 2')
 }
 
 console.log(failed === 0 ? `\n全部通过（${total} 项）` : `\n${failed}/${total} 项失败`)

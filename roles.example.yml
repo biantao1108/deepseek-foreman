@@ -10,7 +10,7 @@
 #   再把 provider / model 换成你自己的路由名，保存即生效。
 #
 # 字段说明（每条角色都能用，缺省值见括号）
-#   role             角色键。模型调 pick_route 时传的名字，如 lead / daily-code / review。
+#   role             角色键。模型调 pick_route 时传的名字，如 foreman / daily-code / review。
 #   vendor           厂商键。只用于「异族审查」判定：同 vendor 的写手与审查者不能互审。
 #                    同一家厂商的不同模型，vendor 要填同一个值。
 #   provider         交给 subagent 工具的路由 provider（必填）。
@@ -32,10 +32,10 @@
 
 # ── 组合 A：单一厂商全家桶（自家模型分档；审查必须另找一家厂商，否则同族审查会被拒）
 # roles:
-#   - role: lead
+#   - role: foreman
 #     vendor: vendor-a
 #     provider: PROVIDER_A            # ← 换成你的 provider
-#     model: MODEL_LEAD               # ← 换成你的模型
+#     model: MODEL_FOREMAN            # ← 换成你的模型
 #     reasoningEffort: high
 #     note: 经理位。不写代码，只看工单、回执和审查意见。
 #   - role: daily-code
@@ -65,10 +65,10 @@
 
 # ── 组合 B：多厂商混合（经理 / 施工 / 审查分属三家，谁跟谁都不算同族）
 # roles:
-#   - role: lead
+#   - role: foreman
 #     vendor: vendor-a
 #     provider: PROVIDER_A
-#     model: MODEL_LEAD
+#     model: MODEL_FOREMAN
 #     note: 经理位。
 #   - role: daily-code
 #     vendor: vendor-b
@@ -93,26 +93,27 @@
 #
 # 适用于「你日常闲聊很多、真正写代码不多」的场景：
 # 会话模型切到最便宜档并贴 persona.secretary.example.md，
-# 它把你的大白话蒸馏成需求包，subagent 派给 lead 角色干活——
-# 聊天 token 全按便宜档计费，高阶模型的上下文里只有需求包。
+# 它把你的大白话整理成需求包（目标/边界不做/成功信号/已定决策四要素），
+# subagent 派给 foreman 角色干活——聊天 token 全按便宜档计费，
+# 高阶模型的上下文里只有这份需求包（放不下时内容落 _tickets/req-*.md，包里只留要素+路径）。
 #
 # 关键约束（照抄即可生效）：
-#   · lead 用的厂商必须能派 subagent 且在白名单内；
-#   · review 与 lead 必须不同厂商（否则同族硬拒），
-#     所以 lead = A 家时 review 用 B 家、review-alt 再回 A 家；
-#   · 施工角色与 lead 同厂商也没问题（只有审查要跨族）。
+#   · foreman 用的厂商必须能派 subagent 且在白名单内；
+#   · review 与 foreman 必须不同厂商（否则同族硬拒），
+#     所以 foreman = A 家时 review 用 B 家、review-alt 用 C 家（它审 foreman 的产物，不能跟 foreman 同族）；
+#   · 施工角色与 foreman 同厂商也没问题（只有审查要跨族）。
 #
-# - role: lead
+# - role: foreman
 #   vendor: vendor-a
 #   provider: PROVIDER_A
-#   model: MODEL_LEAD
+#   model: MODEL_FOREMAN
 #   vision: true
 #   note: 经理位。只读工单/回执/审查意见，不看代码细节。
-# - role: lead-backup
+# - role: foreman-backup
 #   vendor: vendor-b
 #   provider: PROVIDER_B
 #   model: MODEL_PRO
-#   note: 经理备位。lead 额度用尽时把 lead 一行改指它（改一行、热更新）。
+#   note: 经理备位。foreman 额度用尽时把 foreman 一行改指它（改一行、热更新）。
 # - role: daily-code
 #   vendor: vendor-c
 #   provider: PROVIDER_C
@@ -125,10 +126,10 @@
 #   provider: PROVIDER_B
 #   model: MODEL_PRO
 #   vision: true
-#   note: 审 vendor-a 产物（与 lead 跨族）。critical 单走物理只读实例。
+#   note: 审 vendor-a 产物（与 foreman 跨族）。critical 单走物理只读实例。
 # - role: review-alt
 #   vendor: vendor-c
 #   provider: PROVIDER_C
 #   model: MODEL_PRO
 #   vision: true
-#   note: 审 lead 自己的产物（lead=vendor-a，这里必须换族）。
+#   note: 审 foreman 自己的产物（foreman=vendor-a，这里必须换族）。

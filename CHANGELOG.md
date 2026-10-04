@@ -3,13 +3,118 @@
 本项目的显著改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [0.2.2] - 2026-10-01
+## [0.7.0] — 未发布（待验收后统一提交）
 
-### 文档
-- README 双语定位重构：开头一句话定位「让强模型当工头、便宜模型干活、别家厂商审查——多模型协作，又省又好」+ 「小白三步」上手框
-- 新增「联合使用效果 / Works with」节：三件套联合矩阵（本包 / 精简输出 persona / 行为约束类 skill），含机制说明（persona 部署层继承已实证）与诚实口径（逐插件孤立量化未做 A/B，不给数字）
-- 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
-- `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
+### 破坏性改动（大版本，不设兼容回退）
+- **决策层 role key `lead` → `foreman`**：角色表键名与五阶段词表（session/foreman/worker/reviewer/report）对齐，文档与配置从此只有一套叫法。仓库侧已全量同步——`roles.example.yml`（组合 A/B/C）、`example.cordis.yml`、秘书 persona、SKILL、`docs/secretary-mode.md`、`docs/stages-and-ledger.md`、`pick_route` 工具描述串与自检 mock；**本机 `~/.dsh/foreman.roles.yml` 需同步改（已改：`role: foreman` / `role: foreman-backup`）**，`~/.dsh/foreman-insights/schema.md` 一并同步。旧配置里的 `lead` 键不再被识别，升级时请自行改键名。
+- **cost 模式对齐 dsh wire view（T305）**：修复 live 读数全灭——`readCost` 原先按原始 state 形状读 `.totals.inputTokens`，而 dsh 0.2.0-rc.2 的 `snapshot().values` 返回 wire view（无中间层、input 键为 `uncachedInputTokens`）；现读取路径与 smoke mock 全对齐，recent 行补 cache 桶（`cacheReadTokens`/`cacheWriteTokens`）与模型名（读会话事件日志 `model/selection`，退 `request/header`，读不到省略不编）。
+- 不发 npm（按既定边界，本轮只本机验证）。
+
+## [0.6.1-rc.13] — 未发布（等真实项目验证）
+
+### 三层委派拓扑正式上线（live 实测通过）
+- **根因终局**：dsh-subagent 的 maxDepth 是框架私有 volatile，只有插件加载器能写，写入触发器是配置文件变化（`updateVolatile` 私有 symbol）——之前四次代码层尝试（set/inject/调用时重试/setter 签名）全在跟这个私有写入协议打架。
+- **修法（已 live 实测）**：patch 里加裸覆盖条目 `- id: subagent / config: {maxDepth: 2}`，按 id 覆盖 dsh-base 的挂载；**保存即热推，不用重启**。实测：嵌套派单 depth 1 → depth 2 成功返回。
+- 插件代码改为**只读+hint**：doctor 的 `delegation` 字段只报告当前深度，不够就告诉用户那一行配置怎么加，不再尝试代码写入。
+- 自检 123 → 126 项；测试 mock 同步改成真实 volatile 形态。
+
+## [0.6.1-rc.12] — 未发布（等真实项目验证）
+
+### 评审五决定的落地（一条 rc 一批已验证改动）
+- **P3 mock 规矩**：fixture 形状必须从源码抽取并注来源行号，碰宿主行为必配 live 冒烟（并入「验收」节，不新增行数）
+- **P4 数字来源**：需求包任何数字必须标（实测/推导/拍脑袋），没标的一律打回（并入需求包段）
+- **P5 记忆外置**：docs/long-memory.md——session 是窗口、文件是记忆；「单会话全生命周期」= 压缩/重启后可从文件集完整恢复，不靠 token 累积；SOP 十一节并入
+- **P2 口径**：台账改为「只做统计参考，不要求精确」，worker/reviewer 允许人抄大概值标「参考」
+- **版本节奏铁律**（release-checklist）：一个版本=一个已验证改动；碰宿主行为必须过 live 才算验证
+- F1 欠账清理（真实项目侧）：22 张归档 done、2 张 dropped（T019 被 T021 取代 / T026 与 T028 重复）、B 组 4 张未验收立 T038 补验收单
+
+## [0.6.1-rc.11] — 未发布（等真实项目验证）
+
+### 委派深度：修 setter 姿势（真错误终于浮出水面）
+- 之前三次尝试分别败在：补丁层覆盖不到 preset scope 实例、`ctx.inject` 不触发、**把 schemastery 的 `Schema.set(key, value)` 当成单参 setter 调**（实测报错 `cap.set is not a function`）。
+- 现在按真实形态处理：`config.maxDepth` 可能是数字、也可能是带 `get()` 的字段 Schema，父 `config` 才有 `set(key,value)`；三条路径都试，doctor 如实报走通哪条。
+- 自检的 mock 一并改成真实 Schema 形态——**之前的 mock 形状本身就是错的，这正是「mock 照抄错误形状导致测试全绿、live 全灭」的又一次重演**。
+
+## [0.6.1-rc.10] — 未发布（等真实项目验证）
+
+### 委派深度：改在工具调用时补设
+- `ctx.inject(['subagents'])` 在本机**实测未触发**（doctor 显示 `not read yet`），服务名确认无误（`super(ctx, "subagents")`）。改为在每次 `pick_route` 执行前补设一次——那时会话已存在，服务必然注册。
+- 三重兜底：inject（若触发）→ apply 期同步 get → 工具调用时 get。doctor 的 `delegation` 字段如实反映每条路径结果。
+- 自检 121 → 123 项（新增「服务晚注册」场景）。
+
+## [0.6.1-rc.9] — 未发布（等真实项目验证）
+
+### 委派深度：改用 ctx.inject 等待服务注册
+- 上版在 apply() 里同步取 `ctx.get('subagents')`，实测返回 `no subagent service`——**插件加载时该服务尚未注册**。改为 `ctx.inject(['subagents'], …)` 等注册后再设深度，保留同步读取作兜底。
+- doctor 的 `delegation` 字段会显示 `not read yet` / `raised 1 → 2` / `no subagent service`，一眼看出成没成。
+
+## [0.6.1-rc.8] — 未发布（等真实项目验证）
+
+### 委派深度：改由插件在启动时设置（补丁层无效）
+- 新增 `delegationDepth` 配置（默认 2）：插件 `apply()` 时直接把 host 的 subagent 服务深度从 1 抬到 2
+- **补丁层配置无效**：`tool-subagent` 实例活在 preset scope，profile/bundle 的同 id 条目覆盖不到它（同 T205 的 scope 坑，静默失效）；而 `maxDepth` 是 `.volatile()` 的，设计上就是给运行时设的
+- `pick_route` 的 doctor 多一个 `delegation` 字段，直接告诉你抬没抬成功（「raised 1 → 2」/「already N」/「no subagent service」）
+- 自检 119 → 121 项
+
+## [0.6.1-rc.7] — 未发布（等真实项目验证）
+
+### 秘书模式结构性修复 + 计量边界澄清
+- **委派深度**：bundle patch 给 `tool-subagent` 显式设 `maxDepth: 2`。dsh-subagent **服务层默认是 1**（工具层的 3 不生效，会被服务默认覆盖），导致 `session→foreman→worker` 三层链物理跑不通（实测报错 `subagent depth 2 exceeds maxDepth 1`）。放开后三层拓扑成立。
+- **计量边界**：`list_agents` schema 是闭集，模型读不到子代理 token；`worker`/`reviewer` 两列改为「见面板」，**模型不估算不编造**（源码实证：tokenUsage 只进浏览器 UI）。
+
+## [0.6.1-rc.6] — 未发布（等真实项目验证）
+
+### 上下文工程调研结论（docs/context-research.md）
+- **格式不重要**：跨 5 模型研究显示 markdown 对纯文本无可靠优势，有模型反而偏好纯文本
+- **指令条数才重要**：N=80 时**所有模型、所有格式**完全遵循率归零；本项目常驻指令已 45+ 条，处在衰减区
+- **上下文满了的失败模式是拒答（0%→79-90%），不是编造**（编造 0/5760）
+- **文件优先有出处**：Anthropic 官方推荐 just-in-time 上下文（只给路径、运行时按需加载），并澄清「minimal ≠ short」
+- 产品规则：**停止加规则**（新增一条必须合并一条）；规则按场景切分；模型拒答先查上下文不加规则
+
+## [0.6.1-rc.5] — 未发布（等真实项目验证）
+
+### 五阶段词表 + 只记数不设预算（用户拍板）
+- **阶段词表**（docs/stages-and-ledger.md）：`session` 会话/秘书 → `foreman` 决策（= 角色表 `lead`）→ `worker` 施工 → `reviewer` 审查（异族）→ `report` 回传（由 session 执行，**必经步骤**）
+- **取消预算闸**：删掉拍脑袋的「单张 500 万 token / 200 轮」等计数器，改为每单记各阶段真实 token（`cost_session=recent`），期末求和即知钱花在哪
+- 熔断只用可观测信号：连续 2 张单无验收通过 / 同一口径第 3 次被改 / 用户指定时间点
+- 记账只存 token 事实，单价在核算时现取
+
+## [0.6.1-rc.4] — 未发布（等真实项目验证）
+
+### rc.3 实战验证的产物（收尾一个 28 张单烂摊子）
+- **归档判定以「回执 + 提交 + 审查」三件套为准，progress.md 只作索引**——实战揭穿：某项目把 4 张「Lead 从未验收」的单在 progress 里记成「施工中」
+- **重复单前置拦截**：派单前 grep 目标句，挡住「同一件事开两张编号」（实战发现 T026 与 T028 同题）
+- 真源声明模板实战可用：一张单替代原来的五张修补单
+
+## [0.6.1-rc.3] — 未发布（等真实项目验证）
+
+### 体积限制全拆（同族扫尾）
+- **handoff 2KB 上限已删**（最后一个活着的「压小」规则）：改 frontmatter 结论层 + 正文不限长；新模板 `templates/handoff.md`
+- 状态/决策/口径一律走文件并在 frontmatter 给路径，不塞交接正文
+- 全仓扫描确认：正文规则里已无任何字节上限（research/review/roadmap 里的 2KB 是历史记录，不回改）
+
+## [0.6.1-rc.2] — 未发布（等真实项目验证）
+
+### 文件优先通则（用户拍板，治 AI 间交接失真）
+- **需求包一律落文件** `_tickets/req-<日期>-<短名>.md`（新模板 `templates/req.md`，带 frontmatter 结论层）；派单提示只给「路径 + 一句话目标 + state.md 路径」，正文让 Lead 自己 read
+- SKILL.md 立「文件优先通则」：AI 之间的长内容交接一律落文件、聊天只传路径（可寻址/可 diff/可搜索/零长度惩罚/跨会话存活/可先读结论层）
+- 证据：2026-10-04 首场演练，秘书内联需求包派单 = 违反本设计；Lead 读文件仅两次 read + 一次 grep
+
+## [0.6.1-rc.1] — 未发布（等真实项目验证）
+
+### 秘书需求包约束修正（经 Lead 评审后定稿）
+- 删掉「≤1KB 硬闸」：改**要素驱动**——放不进 Lead 一次读完的包、或含状态/长证据时落 `_tickets/req-*.md` 只留要素+路径
+- 第四要素统一为「已定决策」（此前 persona 与 docs 各叫一个，是本次顺手修的旧账）
+- 新增「秘书推断（待确认）」区：秘书判断不得混进「已定决策」
+- 追问硬化为四要素逐项检查；同步同族三处（roles 组合C 注释、SKILL.md 需求包条目）
+- 证据：2026-10-04 现场演练——秘书包被 Lead 评审抓出 5 处（触发条件无定义、推断冒充决策、硬闸失真、第四要素分裂、同族漏扫）
+
+### 口径治理三条改进（治某真实项目修补链，尚未发版）
+- **A 口径契约** `_tickets/state.md`：真源表/已统一/未决/上次根因；critical 开工必读、收尾必更
+- **B 工单真源声明 + 影响面声明**：权威位置、同族要改的、同族不改的+原因、禁改清单、共享资源
+- **C 审查同族扫尾义务**：审查员必须回答「这类模式还有几处、在哪」，只审点名范围算没审完
+
+> 证据：某真实业务项目 2026-10-04 修补链 T032→T036（每张修上一张引入的缺陷），根因是 `DEFAULT_SHOTS_RANGE` 等口径散落 4 处（常量 / 提示词字符串 / 下游判据 / 测试断言），以及 `_gate_dialogue_body` 与 `_lines_for` 在同一文件里两套切分。
 
 ## [0.6.0] - 2026-10-03
 
@@ -136,3 +241,11 @@
 ### 移除
 
 - **出厂去私有化**：`cordis.patch.yml` 与 `example.cordis.yml` 不再包含任何本机真实路由；含本机绝对路径的私有文档（`docs/交接.md`）移出仓库；`_tickets/`、`_receipts/` 已进 `.gitignore`，不进发布内容。
+
+## [0.2.2] - 2026-10-01
+
+### 文档
+- README 双语定位重构：开头一句话定位「让强模型当工头、便宜模型干活、别家厂商审查——多模型协作，又省又好」+ 「小白三步」上手框
+- 新增「联合使用效果 / Works with」节：三件套联合矩阵（本包 / 精简输出 persona / 行为约束类 skill），含机制说明（persona 部署层继承已实证）与诚实口径（逐插件孤立量化未做 A/B，不给数字）
+- 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
+- `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
