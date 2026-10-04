@@ -526,37 +526,214 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
 }
 
 // ── token 计量（cost 模式）──
+// mock 的形状必须是 dsh 真实 wire view：values.tokenUsage 直接是四桶（uncachedInputTokens…），
+// 没有中间层——照被测代码的假设写 mock 就会「测试全绿 live 全灭」。
 {
   const fakeSession = { id: 's1' }
   const fakeCtx = {
     get(name) {
       if (name === 'sessions') return { get: () => fakeSession }
-      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { totals: { inputTokens: 12345, outputTokens: 678, cacheReadTokens: 9, cacheWriteTokens: 0 } } } }) }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 12345, outputTokens: 678, cacheReadTokens: 9, cacheWriteTokens: 0 } } }) }
       return undefined
     },
   }
   const mk = (ctx2) => { let t; apply({ tools: { register: (x) => { t = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-none.yml' }); return t }
   const r = await mk(fakeCtx).execute({ cost_session: 's1' }, {})
   check('cost 模式读到真实 token（input 12345）', r.cost.found && r.cost.totals.inputTokens, 12345)
+  check('cost 模式 cache 桶读出真数（cacheRead 9）', r.cost.totals.cacheReadTokens, 9)
   const r2 = await mk({ get: () => undefined }).execute({ cost_session: 's1' }, {})
   check('cost 模式服务缺失 → found=false 不编数', r2.cost.found, false)
+  // T305b#4：found:false 的两种真因分开如实报
+  const noProjection = await mk({ get(name) {
+    if (name === 'sessions') return { get: () => ({ id: 'no-meter' }) }
+    if (name === 'sessionProjections') return { snapshot: () => ({ values: {} }) }
+    return undefined
+  } }).execute({ cost_session: 'no-meter' }, {})
+  check('cost 投影未注册 → found:false 报「not registered」', noProjection.cost.found === false && noProjection.cost.detail,
+    'tokenUsage projection not registered in this deployment')
+  const allZero = await mk({ get(name) {
+    if (name === 'sessions') return { get: () => ({ id: 'zero' }) }
+    if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } }) }
+    return undefined
+  } }).execute({ cost_session: 'zero' }, {})
+  check('cost 桶全零 → found:false 报「all buckets are zero」', allZero.cost.found === false && allZero.cost.detail,
+    'tokenUsage wire view present but all buckets are zero')
+  // T305c#3：两个服务缺失分开报因——detail 必须点名缺的是哪个
+  const okBuckets = () => ({ values: { tokenUsage: { uncachedInputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } })
+  const noSessions = await mk({ get: (name) => (name === 'sessionProjections' ? { snapshot: okBuckets } : undefined) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 无 sessions 服务 → detail 点名 sessions', noSessions.cost.found === false && noSessions.cost.detail,
+    'sessions service unavailable in this deployment')
+  const noProjections = await mk({ get: (name) => (name === 'sessions' ? { get: () => ({ id: 's1' }) } : undefined) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 无 sessionProjections 服务 → detail 点名投影', noProjections.cost.found === false && noProjections.cost.detail,
+    'sessionProjections service unavailable in this deployment')
+  // T305c#4：单会话路径的 sessions.get 同样防御（非函数 / 抛错）
+  const noGet = await mk({ get: (name) => (name === 'sessions' ? { list: () => [] } : { snapshot: okBuckets }) })
+    .execute({ cost_session: 's1' }, {})
+  const throwGet = await mk({ get: (name) => (name === 'sessions' ? { get() { throw new Error('get boom') } } : { snapshot: okBuckets }) })
+    .execute({ cost_session: 's1' }, {})
+  check('cost 单会话 sessions.get 非函数/抛错 → found:false 如实报',
+    noGet.cost.found === false && noGet.cost.detail === 'sessions.get unavailable in this deployment'
+    && throwGet.cost.found === false && throwGet.cost.detail === 'sessions.get threw in this deployment', true)
+  // T305d#1：id 查不到 → 提前 return 的「no such session id」分支；
+  // 顺带盖住 id 归一化三元（'' 与非 '' 两臂都落到同一个 no-such 分支）
+  const noSuchCtx = { get: (name) => (name === 'sessions' ? { get: () => undefined } : { snapshot: okBuckets }) }
+  const noSuch = await mk(noSuchCtx).execute({ cost_session: 'ghost' }, {})
+  const noSuchEmpty = await mk(noSuchCtx).execute({ cost_session: '' }, {})
+  check('cost 单会话 id 查不到（含空 id）→ found:false 锁 no such session 文案',
+    noSuch.cost.found === false && noSuch.cost.detail === 'no such session id; pass "recent" to list metered sessions'
+    && noSuchEmpty.cost.found === false && noSuchEmpty.cost.detail === 'no such session id; pass "recent" to list metered sessions', true)
+  // T305d#2：单会话路径 snapshot 抛错 → catch 分支，detail 是 summarize 后的错误摘要
+  const snapThrow = await mk({ get: (name) => (name === 'sessions' ? { get: () => ({ id: 'boom1' }) } : { snapshot: () => { throw new Error('snapshot boom') } }) })
+    .execute({ cost_session: 'boom1' }, {})
+  check('cost 单会话 snapshot 抛错 → found:false + summarize 错误摘要', snapThrow.cost.found === false && snapThrow.cost.detail,
+    'snapshot boom')
 }
 
 // ── cost recent 模式（秘书记账）──
 {
-  const s1 = { id: 'old' }, s2 = { id: 'new' }
+  const s1 = { id: 'old' }
+  const s2 = {
+    id: 'new',
+    // 事件日志带一条 model/selection（dsh 形状：data 是 provider/model 对）；
+    // 首条是无关事件类型——覆盖 readSessionModel「两个 if 都不匹配就跳过」的隐式 else
+    log: [
+      { type: 'turn/start', data: {} },
+      { type: 'model/selection', data: { provider: 'provider-f', model: 'model-f' } },
+    ],
+  }
+  // T305b#1：回退路径——日志里没有 model/selection，只有 request/header；
+  // 第二条 header 必须被忽略（只取第一条），覆盖 `header === undefined` 守卫为假的分支
+  const s3 = {
+    id: 'hdr',
+    log: [
+      { type: 'request/header', data: { header: { config: { provider: 'provider-g', model: 'model-g' } } } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-g2', model: 'model-g2' } } } },
+    ],
+  }
+  // T305b#2：fork 继承前 2 条是父会话的 selection/header，本会话自己的事件在继承数之后
+  const s4 = {
+    id: 'fork',
+    inheritedEventCount: 2,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-x', model: 'model-x' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-y', model: 'model-y' } } } },
+      { type: 'model/selection', data: { provider: 'provider-h', model: 'model-h' } },
+    ],
+  }
+  // 同上，但本会话自己没有 selection、只有 header——不跳过继承前缀就会误报父会话模型
+  const s5 = {
+    id: 'fork-hdr',
+    inheritedEventCount: 1,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-x2', model: 'model-x2' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-i', model: 'model-i' } } } },
+    ],
+  }
+  const buckets = (uncachedInputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) =>
+    ({ uncachedInputTokens, outputTokens, cacheReadTokens, cacheWriteTokens })
+  // T305c#2：inheritedEventCount 是 1.5——非整数会让 log[1.5] 取空抛错、整行被 per-session catch 吞掉
+  const s6 = {
+    id: 'frac',
+    inheritedEventCount: 1.5,
+    log: [
+      { type: 'model/selection', data: { provider: 'provider-frac-p', model: 'model-frac-p' } },
+      { type: 'request/header', data: { header: { config: { provider: 'provider-j', model: 'model-j' } } } },
+      // 类型是 model/selection 但 data 不是 provider/model 字符串对——必须跳过，模型仍取上面的 header
+      { type: 'model/selection', data: { provider: 42 } },
+    ],
+  }
+  // T305c#6：这个会话的 snapshot 抛错——只跳过它，其余照常列出
+  const s7 = { id: 'boom' }
+  const usageById = {
+    old: buckets(100, 10, 3, 0),
+    new: buckets(900, 90, 5, 1),
+    hdr: buckets(7, 2, 0, 0),
+    fork: buckets(20, 4, 0, 0),
+    'fork-hdr': buckets(30, 5, 1, 0),
+    frac: buckets(50, 10, 0, 0),
+  }
   const ctx2 = {
     get(name) {
-      if (name === 'sessions') return { get: (id) => (id === 'old' ? s1 : undefined), list: () => [s1, s2] }
-      if (name === 'sessionProjections') return { snapshot: (s) => ({ values: { tokenUsage: { totals: s.id === 'old' ? { inputTokens: 100, outputTokens: 10 } : { inputTokens: 900, outputTokens: 90 } } } }) }
+      if (name === 'sessions') return { get: (id) => (id === 'old' ? s1 : undefined), list: () => [s1, s2, s3, s4, s5, s6, s7] }
+      if (name === 'sessionProjections') return { snapshot: (s) => { if (s.id === 'boom') throw new Error('snapshot boom'); return { values: { tokenUsage: usageById[s.id] } } } }
       return undefined
     },
   }
-  let t3; apply({ tools: { register: (x) => { t3 = x } }, get: ctx2.get }, { roles: [], rolesFile: '/tmp/cost-recent.yml' })
-  const r = await t3.execute({ cost_session: 'recent' }, {})
-  check('cost recent 按 token 倒序列出两个会话', r.cost.recent.length, 2)
+  const toolFor = (ctxX) => { let t; apply({ tools: { register: (x) => { t = x } }, get: ctxX.get }, { roles: [], rolesFile: '/tmp/cost-sweep.yml' }); return t }
+  const r = await toolFor(ctx2).execute({ cost_session: 'recent' }, {})
+  const row = (id) => r.cost.recent.find((x) => x.session === id)
+  check('cost recent 按 token 倒序列出六个会话（抛错的 boom 被跳过）', r.cost.recent.length, 6)
+  check('cost recent 倒序与跳过：boom 不在、顺序为 new…hdr',
+    r.cost.recent.map((x) => x.session).join(','), 'new,old,frac,fork-hdr,fork,hdr')
+  // T305d#3（另一臂）：有结果时不附加失败计数——detail 仍是裸的 N session(s)
+  check('cost recent 有结果时 detail 不附加失败计数', r.cost.detail, '6 session(s) with metered usage')
   check('cost recent 首位是 token 最多的会话', r.cost.recent[0].session, 'new')
-  check('cost recent 算对总数（990）', r.cost.recent[0].totalTokens, 990)
+  check('cost recent 算对总数（996）', r.cost.recent[0].totalTokens, 996)
+  check('cost recent 行带模型名（model/selection）', r.cost.recent[0].model, 'provider-f/model-f')
+  check('cost recent 行带 cache 桶（900/90/5/1）',
+    r.cost.recent[0].inputTokens === 900 && r.cost.recent[0].outputTokens === 90
+    && r.cost.recent[0].cacheReadTokens === 5 && r.cost.recent[0].cacheWriteTokens === 1, true)
+  check('cost recent inputTokens 取 wire 的 uncachedInputTokens', r.cost.recent[0].inputTokens, 900)
+  check('cost recent 无事件日志的行不编模型名', 'model' in r.cost.recent[1], false)
+  // T305b#1：只有 request/header 的行回退出配置里的模型名
+  check('cost recent 回退第一条 request/header 的模型名', row('hdr').model, 'provider-g/model-g')
+  // T305b#2：只看本子会话自己的事件（父会话前缀不参与）
+  check('cost recent fork 行取本会话自己的 selection', row('fork').model, 'provider-h/model-h')
+  check('cost recent fork 行不误报父会话模型（取自己的 header）', row('fork-hdr').model, 'provider-i/model-i')
+  // T305c#2：1.5 截断成整数偏移——行不被吞，模型取 own 事件（不是父会话的 selection）
+  check('cost recent 非整数 inheritedEventCount 仍出行、模型取 own 事件', row('frac').model, 'provider-j/model-j')
+  // T305b#3：sessions 服务没有 list → 如实报因，不抛错
+  const noListCtx = {
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }) }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }
+  const rn = await toolFor(noListCtx).execute({ cost_session: 'recent' }, {})
+  check('cost recent 服务无 list → found:false 不抛错', rn.cost.found === false && rn.cost.detail,
+    'sessions.list unavailable in this deployment')
+  // T305c#1：list 半截防御——调用抛错 / 返回非数组，都不冒穿、如实报因
+  const rThrowList = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }), list: () => { throw new Error('list boom') } }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent list 抛错 → found:false 不冒穿', rThrowList.cost.found === false && rThrowList.cost.detail,
+    'sessions.list threw in this deployment')
+  const rNonArray = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { get: (id) => ({ id }), list: () => 'not-an-array' }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(1, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent list 返回非数组 → found:false 如实报', rNonArray.cost.found === false && rNonArray.cost.detail,
+    'sessions.list returned a non-array in this deployment')
+  // T305c#7：所有会话零用量 → 零结果分支如实 found:false
+  const rZero = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { list: () => [{ id: 'z1' }, { id: 'z2' }] }
+      if (name === 'sessionProjections') return { snapshot: () => ({ values: { tokenUsage: buckets(0, 0, 0, 0) } }) }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent 全部会话零用量 → found:false + 0 session(s)', rZero.cost.found === false && rZero.cost.detail,
+    '0 session(s) with metered usage')
+  // T305d#3：零结果的另一真因——不是没人计量，是全都读不到（失败计数进 detail）
+  const rAllFail = await toolFor({
+    get(name) {
+      if (name === 'sessions') return { list: () => [{ id: 'f1' }, { id: 'f2' }] }
+      if (name === 'sessionProjections') return { snapshot: () => { throw new Error('read boom') } }
+      return undefined
+    },
+  }).execute({ cost_session: 'recent' }, {})
+  check('cost recent 全部会话读失败 → 零结果 detail 带失败计数', rAllFail.cost.found === false && rAllFail.cost.detail,
+    '0 session(s) with metered usage (2 failed to read)')
 }
 
 // ── 委派深度（dsh-subagent maxDepth 默认 1，三层链靠它）──
@@ -575,6 +752,12 @@ check('T202 坏文件的 hints 点出角色表有问题', errSetup.hints.some((h
   const r = await tool2.execute({}, {})
   check('无 subagent 服务 → 不抛错且 setup 给出说明', r.setup.delegation, 'no subagent service')
   apply({ tools: { register: () => {} }, get: () => ({ config: { maxDepth: 3 } }) }, { roles: [], rolesFile: '/tmp/d3.yml' })
+  // T305c#5：cap.get() 抛错 → 按该区段既有风格降级，setup 不炸
+  let toolThrow
+  apply({ tools: { register: (t) => { toolThrow = t } }, get: (n) => n === 'subagents' ? { config: { maxDepth: { get() { throw new Error('cap boom') } } } } : undefined },
+    { roles: [], rolesFile: '/tmp/d-throw.yml' })
+  const rThrow = await toolThrow.execute({}, {})
+  check('maxDepth cap.get 抛错 → 不炸、delegation 如实报 cannot read maxDepth', rThrow.setup.delegation, 'cannot read maxDepth')
 }
 
 // ── 委派深度：服务晚注册的场景（inject 不触发，靠工具调用时补设）──
