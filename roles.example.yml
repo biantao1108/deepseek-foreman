@@ -87,3 +87,48 @@
 #     provider: PROVIDER_B
 #     model: MODEL_TEXT
 #     note: 中文文案、看图识别。
+
+# ─────────────────────────────────────────────────────────────
+# 组合 C：秘书模式（对话用最便宜模型，高阶模型只做判断）
+#
+# 适用于「你日常闲聊很多、真正写代码不多」的场景：
+# 会话模型切到最便宜档并贴 persona.secretary.example.md，
+# 它把你的大白话蒸馏成需求包，subagent 派给 lead 角色干活——
+# 聊天 token 全按便宜档计费，高阶模型的上下文里只有需求包。
+#
+# 关键约束（照抄即可生效）：
+#   · lead 用的厂商必须能派 subagent 且在白名单内；
+#   · review 与 lead 必须不同厂商（否则同族硬拒），
+#     所以 lead = A 家时 review 用 B 家、review-alt 再回 A 家；
+#   · 施工角色与 lead 同厂商也没问题（只有审查要跨族）。
+#
+# - role: lead
+#   vendor: vendor-a
+#   provider: PROVIDER_A
+#   model: MODEL_LEAD
+#   vision: true
+#   note: 经理位。只读工单/回执/审查意见，不看代码细节。
+# - role: lead-backup
+#   vendor: vendor-b
+#   provider: PROVIDER_B
+#   model: MODEL_PRO
+#   note: 经理备位。lead 额度用尽时把 lead 一行改指它（改一行、热更新）。
+# - role: daily-code
+#   vendor: vendor-c
+#   provider: PROVIDER_C
+#   model: MODEL_FLASH
+#   vision: true
+#   reasoningEffort: high
+#   note: 主力施工。
+# - role: review
+#   vendor: vendor-b
+#   provider: PROVIDER_B
+#   model: MODEL_PRO
+#   vision: true
+#   note: 审 vendor-a 产物（与 lead 跨族）。critical 单走物理只读实例。
+# - role: review-alt
+#   vendor: vendor-c
+#   provider: PROVIDER_C
+#   model: MODEL_PRO
+#   vision: true
+#   note: 审 lead 自己的产物（lead=vendor-a，这里必须换族）。

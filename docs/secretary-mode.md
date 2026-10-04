@@ -1,7 +1,7 @@
 # 秘书模式（Secretar y Mode）设计——面向 v0.6
 
 > 需求：用户对话用最便宜模型（秘书）吸收聊天；高阶模型（Lead）只收蒸馏需求负责分析/拆单/派单/验收。聊天废话零成本。
-> 状态：DESIGN（技术侦察已完成，待拆单实施）。
+> 状态：**已落地并实测通过**（2026-10-03）。本机拓扑见下节；0.5.2+ 随包提供 secretary persona。
 
 ## 架构
 
@@ -38,3 +38,29 @@ Lead（K3 级）子会话               ← 分析、拆单、派单、验收、
 - 蒸馏包格式（对齐 osslab goal 三要素）：目标原话 / 边界（不做清单）/ 成功信号 / 权威契约
 - Lead 拒绝含糊需求：蒸馏包缺要素打回秘书，秘书再追问用户（一轮往返在 flash 侧）
 - 一切成本照记：秘书 token 与 Lead token 分列进 insights 台账
+
+
+## 本机实测拓扑（2026-10-03 验证）
+
+```
+你 ⇄ MiniMax M3.1（会话模型 = 秘书，flash 价）
+      │ 蒸馏需求包 ≤1KB（目标 / 边界不做 / 成功信号 / 已定决策）
+      ▼ pick_route role=lead
+Kimi K3（Lead：分析、拆单、派单、亲跑验收、逐条核实）
+      ├── MiMo-V2.6-Flash（主力施工，可带视觉，high）
+      ├── DeepSeek-V4.1-Flash（半价窗口/高峰自动改派）
+      └── MiniMax M3.1（自家不可用时的备用施工）
+交叉验证：K3 审米系产物 ｜ MiMo-V2.6-Pro 审 K3 自己的活
+```
+
+**实测结论**（本机跑通，模型名用公开产品名）：
+- 角色表热更新即生效（改完 `pick_route lead` 当场返回新路由），K3 派单实测可跑。
+- 同族硬约束生效：K3 审 K3 被拒（both vendor same）；MiMo-V2.6-Pro 审 K3 通过。
+- 秘书人格必须**新开会话**才注入（personaPrefix 在会话启动时读）；0.5.3 的 `cost_session=recent` 必须**重启 app** 进内存。这两条是踩过的坑。
+
+## 别人的复制步骤
+
+1. 角色表用 `roles.example.yml` 的**组合 C**（lead/lead-backup/daily-code/review/review-alt，跨族约束已写进注释）。
+2. 会话模型切最便宜档 → system-prompt 插件的 personaPrefix 贴 [persona.secretary.example.md](../persona.secretary.example.md)（仅当会话模型是廉价档时生效，规则里带条件判断）。
+3. 重开会话 → 说人话；秘书追问 → 派 lead → 回来结论。
+4. 每单收尾秘书自己调 `pick_route cost_session=recent` 读真实 token 记账。

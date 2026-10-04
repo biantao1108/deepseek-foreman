@@ -11,6 +11,13 @@
 - 新增 `persona.example.md`：随包精简输出 persona 模板（9 条纪律，可选启用，复制到 system-prompt 插件 `personaPrefix`，子会话自动继承）
 - `docs/install-flow.md` 开头加「小白三步」超简版，原 0–6 步保留为完整版
 
+## [0.6.0] - 2026-10-03
+
+### 秘书模式实测落地
+- docs/secretary-mode.md 补「本机实测拓扑」与「别人的复制步骤」（两个必踩坑：秘书人格要新开会话、cost recent 要重启 app）
+- roles.example.yml 增组合 C：秘书模式角色表模板（lead/lead-backup/daily-code/review/review-alt + 跨族约束注释）
+- 交叉验证拓扑固化为模板：K3 审米系 / MiMo-Pro 审 moonshot 系，同族硬拒由 pick_route 保证
+
 ## [0.5.3] - 2026-10-03
 
 ### 秘书模式补齐计量
